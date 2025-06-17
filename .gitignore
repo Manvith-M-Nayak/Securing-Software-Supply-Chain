@@ -1,0 +1,36 @@
+# === Python bytecode and virtual environments ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+env/
+venv/
+myenv/
+
+# === Node.js ===
+**/node_modules/
+**/package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Brownie build files ===
+**/build/
+**/deployed_address.txt
+**/deployed_addresses.json
+
+# === VSCode and editor files ===
+.vscode/
+*.swp
+*~
+
+# === System files ===
+.DS_Store
+Thumbs.db
+
+# === Git conflict leftovers ===
+*.orig
+
+# === Environment/Secrets ===
+.env
+.env.*

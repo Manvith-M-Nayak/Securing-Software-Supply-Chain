@@ -1,0 +1,19 @@
+dependencies:
+  - OpenZeppelin/openzeppelin-contracts@4.9.3
+
+compiler:
+  solc:
+    version: 0.8.20
+    remappings:
+      - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.9.3"
+
+networks:
+  default: ganache_gui
+  ganache_gui:
+    host: 172.29.246.231
+    port: 8545
+    network_id: 1337  
+    gas_limit: 20000000
+    gas_price: 20000000000
+    max_fee: null
+    priority_fee: null
