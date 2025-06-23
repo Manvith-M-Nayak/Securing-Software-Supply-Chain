@@ -10,7 +10,7 @@ compiler:
 networks:
   default: ganache_gui
   ganache_gui:
-    host: 172.29.246.231
+    host: 172.29.240.1
     port: 8545
     network_id: 1337  
     gas_limit: 20000000

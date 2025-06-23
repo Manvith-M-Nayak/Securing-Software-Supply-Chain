@@ -9,8 +9,8 @@ def main():
 
     # Define paths
     build_path = Path("build/contracts")
-    frontend_abi_path = Path("frontend/src/abis")
-    frontend_contracts_path = Path("frontend/src/contracts")
+    frontend_abi_path = Path("../../frontend/src/abis")
+    frontend_contracts_path = Path("../../frontend/src/contracts")
 
     # Ensure target directories exist
     os.makedirs(frontend_abi_path, exist_ok=True)
