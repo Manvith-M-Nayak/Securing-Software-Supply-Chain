@@ -17,7 +17,7 @@ yarn-error.log*
 # === Brownie build files ===
 **/build/
 **/deployed_address.txt
-**/deployed_addresses.json
+!deployed_addresses.json
 
 # === VSCode and editor files ===
 .vscode/
