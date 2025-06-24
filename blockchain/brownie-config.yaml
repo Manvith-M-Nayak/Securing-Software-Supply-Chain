@@ -13,7 +13,7 @@ networks:
     host: 172.29.240.1
     port: 8545
     network_id: 1337  
-    gas_limit: 20000000
-    gas_price: 20000000000
+    gas_limit: auto
+    gas_price: 2auto
     max_fee: null
     priority_fee: null

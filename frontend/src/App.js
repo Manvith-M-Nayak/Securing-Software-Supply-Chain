@@ -1,19 +1,19 @@
-// src/App.jsx
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 
+// Main App component with routing
 function App() {
-  const [user, setUser] = useState(null);
-
   return (
-    <div>
-      {user ? (
-        <Dashboard user={user} />
-      ) : (
-        <Login onLogin={setUser} />
-      )}
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard/>}/>
+      </Routes>
+    </BrowserRouter>
   );
 }
 
