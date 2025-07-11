@@ -3,80 +3,90 @@ from bson.objectid import ObjectId
 import bcrypt
 from config.db import connect_db
 
-# Connect to MongoDB
+# --------------------------------------------------
+# Mongo connection & Blueprint
+# --------------------------------------------------
 db = connect_db()
-users = db['users']
+users_col = db["users"]
 
-# Define auth blueprint
-auth_bp = Blueprint('auth', __name__)
+auth_bp = Blueprint("auth", __name__)
 
-# -----------------------------
-# SIGNUP ROUTE
-# -----------------------------
-@auth_bp.route('/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role')
-
-    # Validate required fields
-    if not username or not email or not password or not role:
-        return jsonify({"error": "All fields (username, email, password, role) are required"}), 400
-
-    # Check if user already exists with same username or email
-    if users.find_one({'$or': [{'username': username}, {'email': email}]}):
-        return jsonify({"error": "Username or Email already exists"}), 409
-
-    # Hash password using bcrypt
-    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-
-    # Create new user document
-    user_doc = {
-        'username': username,
-        'email': email,
-        'password': hashed_pw,
-        'role': role
+# --------------------------------------------------
+# Helper: serialize user (omit password hash)
+# --------------------------------------------------
+def serialize_user(doc):
+    return {
+        "id":            str(doc["_id"]),
+        "username":      doc["username"],
+        "email":         doc["email"],
+        "role":          doc["role"],
+        "githubUsername": doc.get("githubUsername", "")
     }
 
-    # Insert user into MongoDB
-    result = users.insert_one(user_doc)
+# --------------------------------------------------
+#  POST /api/auth/signup
+# --------------------------------------------------
+@auth_bp.route("/signup", methods=["POST"])
+def signup():
+    data = request.get_json() or {}
 
-    return jsonify({"message": "User registered successfully", "user_id": str(result.inserted_id)}), 201
+    username        = data.get("username", "").strip()
+    email           = data.get("email", "").strip().lower()
+    password        = data.get("password", "")
+    role            = data.get("role", "").strip().lower()
+    github_username = data.get("githubUsername", "").strip()
 
+    # 1) basic validation
+    if not all([username, email, password, role, github_username]):
+        return jsonify({"error": "username, email, password, role, and githubUsername are all required"}), 400
 
-# -----------------------------
-# LOGIN ROUTE
-# -----------------------------
-@auth_bp.route('/login', methods=['POST'])
+    # 2) ensure uniqueness
+    if users_col.find_one({"$or": [{"username": username}, {"email": email}]}):
+        return jsonify({"error": "Username or email already exists"}), 409
+
+    # 3) hash password
+    hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+    # 4) insert document
+    user_doc = {
+        "username":       username,
+        "email":          email,
+        "password":       hashed_pw,
+        "role":           role,
+        "githubUsername": github_username
+    }
+    res = users_col.insert_one(user_doc)
+    user_doc["_id"] = res.inserted_id
+
+    # 5) return created user
+    return jsonify({"user": serialize_user(user_doc)}), 201
+
+# --------------------------------------------------
+#  POST /api/auth/login
+# --------------------------------------------------
+@auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    identifier = data.get('username') or data.get('email')  # Login via username or email
-    password = data.get('password')
+    data = request.get_json() or {}
+
+    identifier = data.get("username") or data.get("email")
+    password   = data.get("password", "")
 
     if not identifier or not password:
         return jsonify({"error": "Username/Email and password are required"}), 400
 
-    # Search by either email or username
-    user = users.find_one({
-        '$or': [{'username': identifier}, {'email': identifier}]
+    # 1) find user by username or email
+    user_doc = users_col.find_one({
+        "$or": [
+            {"username": identifier.strip()},
+            {"email": identifier.strip().lower()}
+        ]
     })
-
-    if not user:
+    if not user_doc:
         return jsonify({"error": "User not found"}), 404
 
-    # Check password using bcrypt
-    if not bcrypt.checkpw(password.encode('utf-8'), user['password']):
+    # 2) verify password
+    if not bcrypt.checkpw(password.encode("utf-8"), user_doc["password"]):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    # Return user data (omit password)
-    return jsonify({
-        "message": "Login successful",
-        "user": {
-            "id": str(user['_id']),
-            "username": user['username'],
-            "email": user['email'],
-            "role": user['role']
-        }
-    }), 200
+    # 3) success
+    return jsonify({"user": serialize_user(user_doc)}), 200
