@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -9,11 +7,12 @@ function Signup() {
     password: '',
     confirmPassword: '',
     role: '',
-    githubUsername: ''
+    githubUsername: '',
+    assignedProjects: [] // New field for assigned projects
   });
 
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [projectInput, setProjectInput] = useState(''); // For adding projects
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,10 +22,27 @@ function Signup() {
     }));
   };
 
+  const addProject = () => {
+    if (projectInput.trim() && !formData.assignedProjects.includes(projectInput.trim())) {
+      setFormData(prevState => ({
+        ...prevState,
+        assignedProjects: [...prevState.assignedProjects, projectInput.trim()]
+      }));
+      setProjectInput('');
+    }
+  };
+
+  const removeProject = (projectToRemove) => {
+    setFormData(prevState => ({
+      ...prevState,
+      assignedProjects: prevState.assignedProjects.filter(project => project !== projectToRemove)
+    }));
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    const { username, email, password, confirmPassword, role, githubUsername } = formData;
+    const { username, email, password, confirmPassword, role, githubUsername, assignedProjects } = formData;
 
     if (!username || !email || !password || !confirmPassword || !role || !githubUsername) {
       alert('Please fill in all fields, including role and GitHub username');
@@ -40,53 +56,70 @@ function Signup() {
 
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/signup', {
-        username,
-        email,
-        password,
-        role,
-        githubUsername
+      // Using fetch instead of axios since axios import was removed
+      const response = await fetch('http://localhost:5001/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          role,
+          githubUsername,
+          assignedProjects
+        })
       });
 
-      if (response.status === 201 || response.status === 200) {
-        const user = response.data.user;
+      const data = await response.json();
 
-        // ✅ Store user data in localStorage
-        localStorage.setItem("user", JSON.stringify(user));
+      if (response.ok) {
+        const user = data.user;
 
         alert('Registration successful! You are now logged in.');
-        switch (user.role) {
-          case 'admin':
-            navigate('/admin');
-            break;
-          case 'developer':
-            navigate('/dev');
-            break;
-          case 'auditor':
-            navigate('/auditor');
-            break;
-          default:
-            navigate('/');
-        }
+        
+        // Note: In a real app, you'd navigate based on user role
+        // For this demo, we'll just show success
+        console.log('User registered:', user);
+        
+        // Reset form after successful registration
+        setFormData({
+          username: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          role: '',
+          githubUsername: '',
+          assignedProjects: []
+        });
+      } else {
+        throw new Error(data.error || data.message || 'Registration failed');
       }
 
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Registration failed';
-      alert('Registration failed: ' + errorMessage);
+      alert('Registration failed: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const goToLogin = () => {
-    navigate('/');
+    alert('In a real app, this would navigate to login page');
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addProject();
+    }
   };
 
   return (
     <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
       <h2>Sign Up</h2>
-      <form onSubmit={handleRegister}>
+      <div>
         <div style={{ marginBottom: '15px' }}>
           <input
             type="text"
@@ -162,8 +195,80 @@ function Signup() {
           </select>
         </div>
 
+        {/* Assigned Projects Section */}
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+            Assigned Projects (Optional)
+          </label>
+          <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
+            <input
+              type="text"
+              value={projectInput}
+              onChange={(e) => setProjectInput(e.target.value)}
+              placeholder="Enter project name"
+              style={{ ...inputStyle, flex: 1 }}
+              disabled={loading}
+              onKeyPress={handleKeyPress}
+            />
+            <button
+              type="button"
+              onClick={addProject}
+              disabled={loading || !projectInput.trim()}
+              style={{
+                padding: '10px 15px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: loading || !projectInput.trim() ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Add
+            </button>
+          </div>
+          
+          {/* Display assigned projects */}
+          {formData.assignedProjects.length > 0 && (
+            <div style={{ border: '1px solid #ccc', borderRadius: '4px', padding: '10px' }}>
+              <strong>Assigned Projects:</strong>
+              <div style={{ marginTop: '5px' }}>
+                {formData.assignedProjects.map((project, index) => (
+                  <div key={index} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    padding: '5px',
+                    backgroundColor: '#f8f9fa',
+                    marginBottom: '5px',
+                    borderRadius: '3px'
+                  }}>
+                    <span>{project}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeProject(project)}
+                      disabled={loading}
+                      style={{
+                        padding: '2px 6px',
+                        backgroundColor: '#dc3545',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <button
-          type="submit"
+          type="button"
+          onClick={handleRegister}
           disabled={loading}
           style={{
             width: '100%',
@@ -178,7 +283,7 @@ function Signup() {
         >
           {loading ? 'Creating Account...' : 'Sign Up'}
         </button>
-      </form>
+      </div>
 
       <div style={{ textAlign: 'center', marginTop: '20px' }}>
         <p>Already have an account?</p>

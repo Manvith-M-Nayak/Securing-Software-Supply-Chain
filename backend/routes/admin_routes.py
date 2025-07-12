@@ -9,6 +9,25 @@ users_col    = db["users"]
 projects_col = db["projects"]
 access_col   = db["access_requests"]   # if you store pending requests separately
 
+# ---------- GET /users ----------
+@admin_bp.route("/users", methods=["GET"])
+def get_users():
+    """Get all users with developer or auditor roles"""
+    try:
+        # Get all users with developer or auditor roles
+        users = list(users_col.find(
+            {"role": {"$in": ["developer", "auditor"]}},
+            {"password": 0}  # Exclude password field for security
+        ))
+        
+        # Convert ObjectId to string for JSON serialization
+        for user in users:
+            user["_id"] = str(user["_id"])
+        
+        return jsonify({"users": users}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
 # ---------- GET /access_requests ----------
 @admin_bp.route("/access_requests", methods=["GET"])
 def access_requests():

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminCommitHistory from "./AdminCommitHistory";
 import AdminRoleManager from "./AdminRoleManager";
 import AdminCreateProject from "./AdminCreateProject";
 
 function AdminDashboard() {
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Retrieve user info from localStorage
@@ -21,6 +23,15 @@ function AdminDashboard() {
     }
   }, []);
 
+  const handleLogout = () => {
+    // Clear user data from localStorage
+    localStorage.removeItem("user");
+    // Clear local state
+    setUser(null);
+    // Redirect to login page
+    navigate("/");
+  };
+
   if (!user) {
     return (
       <div style={{ padding: "20px", fontFamily: "Arial", color: "red" }}>
@@ -32,7 +43,26 @@ function AdminDashboard() {
 
   return (
     <div style={{ padding: "20px", fontFamily: "Arial" }}>
-      <h2>Welcome, {user.username} (Admin)</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "30px" }}>
+        <h2>Welcome, {user.username} (Admin)</h2>
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#dc3545",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "bold"
+          }}
+          onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
+          onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+        >
+          Logout
+        </button>
+      </div>
 
       <div style={{ marginBottom: "30px" }}>
         <AdminCreateProject user={user} />
