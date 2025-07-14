@@ -2,18 +2,32 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Signup() {
+  /* ------------------------------------------------------------------
+     React Router hook for programmatic navigation
+  ------------------------------------------------------------------ */
   const navigate = useNavigate();
+
+  /* ------------------------------------------------------------------
+     Form state now has seven properties, including githubToken
+  ------------------------------------------------------------------ */
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: '',
     role: '',
-    githubUsername: ''
+    githubUsername: '',
+    githubToken: ''          // NEW FIELD
   });
 
+  /* ------------------------------------------------------------------
+     Loading flag disables inputs and shows a spinner label
+  ------------------------------------------------------------------ */
   const [loading, setLoading] = useState(false);
 
+  /* ------------------------------------------------------------------
+     Generic change handler – updates only the key that triggered it
+  ------------------------------------------------------------------ */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevState => ({
@@ -22,16 +36,41 @@ function Signup() {
     }));
   };
 
+  /* ------------------------------------------------------------------
+     Main register handler – validates, builds request, and posts
+  ------------------------------------------------------------------ */
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    const { username, email, password, confirmPassword, role, githubUsername } = formData;
+    const {
+      username,
+      email,
+      password,
+      confirmPassword,
+      role,
+      githubUsername,
+      githubToken
+    } = formData;
 
-    if (!username || !email || !password || !confirmPassword || !role || !githubUsername) {
-      alert('Please fill in all fields, including role and GitHub username');
+    /* --------------------------------------------------------------
+       1) Field completeness check – note githubToken is required
+    -------------------------------------------------------------- */
+    if (
+      !username ||
+      !email ||
+      !password ||
+      !confirmPassword ||
+      !role ||
+      !githubUsername ||
+      !githubToken
+    ) {
+      alert('Please fill in all fields, including role, GitHub username, and GitHub token');
       return;
     }
 
+    /* --------------------------------------------------------------
+       2) Password confirmation
+    -------------------------------------------------------------- */
     if (password !== confirmPassword) {
       alert('Passwords do not match');
       return;
@@ -39,38 +78,45 @@ function Signup() {
 
     setLoading(true);
     try {
-      // Prepare request body with empty project arrays based on role
+      /* ------------------------------------------------------------
+         3) Assemble request payload
+      ------------------------------------------------------------ */
       const requestBody = {
         username,
         email,
         password,
         role,
-        githubUsername
+        githubUsername,
+        githubToken
       };
 
-      // Add the appropriate empty projects field based on role
+      /* ------------------------------------------------------------
+         4) Role‑specific initial project arrays
+      ------------------------------------------------------------ */
       if (role === 'admin') {
         requestBody.createdProjects = [];
       } else {
         requestBody.assignedProjects = [];
       }
 
+      /* ------------------------------------------------------------
+         5) POST to backend
+      ------------------------------------------------------------ */
       const response = await fetch('http://localhost:5001/api/auth/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
 
+      /* ------------------------------------------------------------
+         6) Handle success
+      ------------------------------------------------------------ */
       if (response.ok) {
         const user = data.user;
-
         alert('Registration successful! You are now logged in.');
-        
-        // Navigate to the appropriate page based on user role
+
         switch (user.role) {
           case 'admin':
             navigate('/admin');
@@ -82,22 +128,24 @@ function Signup() {
             navigate('/auditor');
             break;
           default:
-            navigate('/dashboard'); // fallback route
+            navigate('/dashboard');
         }
-        
-        // Reset form after successful registration
+
+        /* --------------------------------------------------------
+           7) Reset form
+        -------------------------------------------------------- */
         setFormData({
           username: '',
           email: '',
           password: '',
           confirmPassword: '',
           role: '',
-          githubUsername: ''
+          githubUsername: '',
+          githubToken: ''
         });
       } else {
         throw new Error(data.error || data.message || 'Registration failed');
       }
-
     } catch (error) {
       console.error('Registration error:', error);
       alert('Registration failed: ' + error.message);
@@ -106,10 +154,9 @@ function Signup() {
     }
   };
 
-  const goToLogin = () => {
-    navigate('/login');
-  };
-
+  /* ------------------------------------------------------------------
+     Allow Enter key to submit when focus is on <select>
+  ------------------------------------------------------------------ */
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -117,10 +164,19 @@ function Signup() {
     }
   };
 
+  /* ------------------------------------------------------------------
+     Navigate to login page
+  ------------------------------------------------------------------ */
+  const goToLogin = () => navigate('/login');
+
+  /* ------------------------------------------------------------------
+     JSX – unchanged layout except for new GitHub token field
+  ------------------------------------------------------------------ */
   return (
     <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
       <h2>Sign Up</h2>
       <div>
+        {/* Username */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="text"
@@ -133,6 +189,7 @@ function Signup() {
           />
         </div>
 
+        {/* Email */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="email"
@@ -145,6 +202,7 @@ function Signup() {
           />
         </div>
 
+        {/* GitHub Username */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="text"
@@ -157,6 +215,20 @@ function Signup() {
           />
         </div>
 
+        {/* GitHub Token – NEW FIELD */}
+        <div style={{ marginBottom: '15px' }}>
+          <input
+            type="text"
+            name="githubToken"
+            value={formData.githubToken}
+            onChange={handleChange}
+            placeholder="GitHub Personal Access Token"
+            style={inputStyle}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Password */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="password"
@@ -169,6 +241,7 @@ function Signup() {
           />
         </div>
 
+        {/* Confirm Password */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="password"
@@ -181,6 +254,7 @@ function Signup() {
           />
         </div>
 
+        {/* Role selector */}
         <div style={{ marginBottom: '15px' }}>
           <select
             name="role"
@@ -197,6 +271,7 @@ function Signup() {
           </select>
         </div>
 
+        {/* Submit button */}
         <button
           type="button"
           onClick={handleRegister}
@@ -216,6 +291,7 @@ function Signup() {
         </button>
       </div>
 
+      {/* Link to login */}
       <div style={{ textAlign: 'center', marginTop: '20px' }}>
         <p>Already have an account?</p>
         <button
@@ -236,6 +312,9 @@ function Signup() {
   );
 }
 
+/* ------------------------------------------------------------------
+   Reusable inline‐style object for inputs
+------------------------------------------------------------------ */
 const inputStyle = {
   width: '100%',
   padding: '10px',
