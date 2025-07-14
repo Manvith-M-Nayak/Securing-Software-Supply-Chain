@@ -29,7 +29,7 @@ function AdminRoleManager({ user: parentUser }) {
   useEffect(() => {
     if (!user?.githubUsername) return;
 
-    // 1) Fetch projects created by admin
+    // 1) Fetch projects created by admin (from admin's createdProjects array)
     fetch(`http://localhost:5001/admin/commits/${user.githubUsername}`)
       .then(r => r.json())
       .then(d => {
@@ -41,11 +41,11 @@ function AdminRoleManager({ user: parentUser }) {
         setStatus("❌ Error fetching projects.");
       });
 
-    // 2) Fetch all users with developer/auditor roles
+    // 2) Fetch all available users (developers and auditors)
     const fetchUsers = async () => {
       try {
-        console.log('Fetching users from: http://localhost:5001/admin/users');
-        const response = await fetch('http://localhost:5001/admin/users');
+        console.log('Fetching users from: http://localhost:5001/admin/available_users');
+        const response = await fetch('http://localhost:5001/admin/available_users');
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -100,15 +100,20 @@ function AdminRoleManager({ user: parentUser }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: selectedProject,
+          projectName: selectedProject,
           userId:    selectedUser,
-          role:      selectedRole
+          role:      selectedRole,
+          assignedAt: new Date().toISOString()
         })
       });
       const data = await res.json();
       if (res.ok) {
-        setStatus("✅ User assigned.");
-        setSelectedProject(""); setSelectedUser(""); setSelectedRole("developer");
+        setStatus("✅ User assigned successfully. Updated both project and user records.");
+        setSelectedProject(""); 
+        setSelectedUser(""); 
+        setSelectedRole("developer");
+        // Refresh projects to show updated assignments
+        refreshProjects();
       } else setStatus("❌ " + (data.error || "Assignment failed."));
     } catch (e) {
       console.error(e);
@@ -116,49 +121,178 @@ function AdminRoleManager({ user: parentUser }) {
     }
   };
 
+  /* --------------------------------------------------
+     Handle removal
+  -------------------------------------------------- */
+  const handleRemove = async (projectId, userId) => {
+    if (!window.confirm("Are you sure you want to remove this user from the project?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:5001/admin/remove_user_from_project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: projectId,
+          userId: userId
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatus("✅ User removed successfully from both project and user records.");
+        refreshProjects();
+      } else {
+        setStatus("❌ " + (data.error || "Removal failed."));
+      }
+    } catch (e) {
+      console.error(e);
+      setStatus("❌ Network/server error.");
+    }
+  };
+
+  /* --------------------------------------------------
+     Refresh projects data
+  -------------------------------------------------- */
+  const refreshProjects = () => {
+    if (!user?.githubUsername) return;
+    
+    fetch(`http://localhost:5001/admin/commits/${user.githubUsername}`)
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d.projects)) setProjects(d.projects);
+        else if (d.error) setStatus("❌ " + d.error);
+      })
+      .catch(err => {
+        console.error(err);
+        setStatus("❌ Error refreshing projects.");
+      });
+  };
+
   /* -------------------------------------------------- */
   return (
-    <div style={{ maxWidth:550, margin:"0 auto 30px", padding:20, border:"1px solid #ccc", borderRadius:6 }}>
+    <div style={{ maxWidth:800, margin:"0 auto 30px", padding:20, border:"1px solid #ccc", borderRadius:6 }}>
       <h3>Assign Role to User</h3>
 
-      {/* Project dropdown */}
-      <label style={{display:"block",marginTop:10}}>Project</label>
-      <select value={selectedProject}
-              onChange={e=>setSelectedProject(e.target.value)}
-              style={{width:"100%",padding:8,marginBottom:10}}>
-        <option value="">-- Select Project --</option>
-        {projects.map(p=>(
-          <option key={p._id||p.id} value={p._id||p.id}>{p.projectName}</option>
-        ))}
-      </select>
+      {/* Assignment Form */}
+      <div style={{ marginBottom: 30, padding: 15, background: "#f8f9fa", borderRadius: 4 }}>
+        {/* Project dropdown */}
+        <label style={{display:"block",marginTop:10}}>Project</label>
+        <select value={selectedProject}
+                onChange={e=>setSelectedProject(e.target.value)}
+                style={{width:"100%",padding:8,marginBottom:10}}>
+          <option value="">-- Select Project --</option>
+          {projects.map(p=>(
+            <option key={p._id||p.id} value={p._id||p.id}>{p.name || p.projectName}</option>
+          ))}
+        </select>
 
-      {/* User dropdown */}
-      <label style={{display:"block"}}>User</label>
-      <select value={selectedUser}
-              onChange={e=>setSelectedUser(e.target.value)}
-              style={{width:"100%",padding:8,marginBottom:10}}>
-        <option value="">-- Select User --</option>
-        {users.map(u=>(
-          <option key={u.userId||u.id||u._id}
-                  value={u.userId||u.id||u._id}>
-            {u.username || u.email} ({u.role})
-          </option>
-        ))}
-      </select>
+        {/* User dropdown */}
+        <label style={{display:"block"}}>User</label>
+        <select value={selectedUser}
+                onChange={e=>setSelectedUser(e.target.value)}
+                style={{width:"100%",padding:8,marginBottom:10}}>
+          <option value="">-- Select User --</option>
+          {users.map(u=>(
+            <option key={u._id}
+                    value={u._id}>
+              {u.username || u.email} ({u.role}) - {u.githubUsername}
+            </option>
+          ))}
+        </select>
 
-      {/* Role dropdown (what role to assign) */}
-      <label style={{display:"block"}}>Role</label>
-      <select value={selectedRole}
-              onChange={e=>setSelectedRole(e.target.value)}
-              style={{width:"100%",padding:8,marginBottom:15}}>
-        <option value="developer">Developer</option>
-        <option value="auditor">Auditor</option>
-      </select>
+        {/* Role dropdown (what role to assign) */}
+        <label style={{display:"block"}}>Role</label>
+        <select value={selectedRole}
+                onChange={e=>setSelectedRole(e.target.value)}
+                style={{width:"100%",padding:8,marginBottom:15}}>
+          <option value="developer">Developer</option>
+          <option value="auditor">Auditor</option>
+        </select>
 
-      <button onClick={handleAssign}
-              style={{padding:"10px 25px",background:"#007bff",color:"#fff",border:"none",borderRadius:4}}>
-        Assign
-      </button>
+        <button onClick={handleAssign}
+                style={{padding:"10px 25px",background:"#007bff",color:"#fff",border:"none",borderRadius:4,marginRight:10}}>
+          Assign
+        </button>
+
+        <button onClick={refreshProjects}
+                style={{padding:"10px 25px",background:"#28a745",color:"#fff",border:"none",borderRadius:4}}>
+          Refresh Projects
+        </button>
+      </div>
+
+      {/* Current Assignments Display */}
+      <div>
+        <h4>Current Project Assignments</h4>
+        {projects.length === 0 ? (
+          <p style={{ color: "#666", fontStyle: "italic" }}>No projects found.</p>
+        ) : (
+          projects.map(project => (
+            <div key={project._id} style={{ 
+              border: "1px solid #ddd", 
+              borderRadius: 4, 
+              padding: 15, 
+              marginBottom: 15,
+              background: "#fff"
+            }}>
+              <h5 style={{ margin: "0 0 10px 0", color: "#333" }}>
+                {project.name || project.projectName}
+              </h5>
+              
+              {project.assignedUsers && project.assignedUsers.length > 0 ? (
+                <div>
+                  <strong>Assigned Users:</strong>
+                  <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                    {project.assignedUsers.map((assignment, index) => (
+                      <li key={index} style={{ 
+                        marginBottom: 8,
+                        padding: "8px 12px",
+                        background: "#f8f9fa",
+                        borderRadius: 3,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}>
+                        <span>
+                          <strong>{assignment.username}</strong> 
+                          ({assignment.githubUsername}) - 
+                          <span style={{ 
+                            color: assignment.role === 'developer' ? '#007bff' : '#28a745',
+                            fontWeight: 'bold'
+                          }}>
+                            {assignment.role}
+                          </span>
+                          {assignment.assignedAt && (
+                            <span style={{ color: "#666", fontSize: "0.9em" }}>
+                              {' '}• Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </span>
+                        <button 
+                          onClick={() => handleRemove(project._id, assignment.userId)}
+                          style={{
+                            padding: "4px 8px",
+                            background: "#dc3545",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: 3,
+                            fontSize: "0.8em",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p style={{ color: "#666", fontStyle: "italic" }}>No users assigned to this project.</p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
 
       {status && <p style={{marginTop:12,color:status.startsWith("✅")?"green":"red"}}>{status}</p>}
     </div>

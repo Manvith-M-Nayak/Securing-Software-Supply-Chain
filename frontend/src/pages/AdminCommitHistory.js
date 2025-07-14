@@ -1,9 +1,27 @@
 import React, { useEffect, useState } from "react";
 
-function AdminCommitHistory({ user }) {
+function AdminCommitHistory() {
   const [projects, setProjects] = useState([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+
+  // Get user from localStorage on component mount
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      } else {
+        setStatus("❌ No user found in localStorage.");
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+      setStatus("❌ Error reading user data from localStorage.");
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -32,7 +50,10 @@ function AdminCommitHistory({ user }) {
       }
     };
 
-    fetchProjects();
+    // Only fetch projects if user is available
+    if (user) {
+      fetchProjects();
+    }
   }, [user]);
 
   return (

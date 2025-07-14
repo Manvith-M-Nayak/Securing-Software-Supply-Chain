@@ -15,14 +15,21 @@ auth_bp = Blueprint("auth", __name__)
 # Helper: serialize user (omit password hash)
 # --------------------------------------------------
 def serialize_user(doc):
-    return {
+    user_data = {
         "id":               str(doc["_id"]),
         "username":         doc["username"],
         "email":            doc["email"],
         "role":             doc["role"],
-        "githubUsername":   doc.get("githubUsername", ""),
-        "assignedProjects": doc.get("assignedProjects", [])
+        "githubUsername":   doc.get("githubUsername", "")
     }
+    
+    # Add role-specific project fields
+    if doc["role"] == "admin":
+        user_data["createdProjects"] = doc.get("createdProjects", [])
+    else:
+        user_data["assignedProjects"] = doc.get("assignedProjects", [])
+    
+    return user_data
 
 # --------------------------------------------------
 #  POST /api/auth/signup
@@ -36,7 +43,8 @@ def signup():
     password        = data.get("password", "")
     role            = data.get("role", "").strip().lower()
     github_username = data.get("githubUsername", "").strip()
-    assigned_projects = data.get("assignedProjects", [])  # Optional during signup
+    assigned_projects = data.get("assignedProjects", [])  # For developers/auditors
+    created_projects = data.get("createdProjects", [])    # For admins
 
     # 1) basic validation
     if not all([username, email, password, role, github_username]):
@@ -49,19 +57,26 @@ def signup():
     # 3) hash password
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-    # 4) insert document
+    # 4) build user document based on role
     user_doc = {
         "username":         username,
         "email":            email,
         "password":         hashed_pw,
         "role":             role,
-        "githubUsername":   github_username,
-        "assignedProjects": assigned_projects  # Initialize as empty array or provided array
+        "githubUsername":   github_username
     }
+    
+    # Add role-specific project fields
+    if role == "admin":
+        user_doc["createdProjects"] = created_projects
+    else:
+        user_doc["assignedProjects"] = assigned_projects
+
+    # 5) insert document
     res = users_col.insert_one(user_doc)
     user_doc["_id"] = res.inserted_id
 
-    # 5) return created user
+    # 6) return created user
     return jsonify({"user": serialize_user(user_doc)}), 201
 
 # --------------------------------------------------
@@ -99,7 +114,7 @@ def login():
 # --------------------------------------------------
 @auth_bp.route("/users/<user_id>/assign-projects", methods=["PUT"])
 def assign_projects(user_id):
-    """Assign projects to a user"""
+    """Assign projects to a user (developers/auditors only)"""
     data = request.get_json() or {}
     projects = data.get("projects", [])
     
@@ -107,14 +122,53 @@ def assign_projects(user_id):
         return jsonify({"error": "Projects must be an array"}), 400
     
     try:
+        # First check if user exists and get their role
+        user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+        if not user_doc:
+            return jsonify({"error": "User not found"}), 404
+        
+        if user_doc["role"] == "admin":
+            return jsonify({"error": "Cannot assign projects to admin users. Use create-projects endpoint instead."}), 400
+        
         # Update user's assigned projects
         result = users_col.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"assignedProjects": projects}}
         )
         
-        if result.matched_count == 0:
+        # Return updated user
+        updated_user = users_col.find_one({"_id": ObjectId(user_id)})
+        return jsonify({"user": serialize_user(updated_user)}), 200
+        
+    except Exception as e:
+        return jsonify({"error": "Invalid user ID"}), 400
+
+# --------------------------------------------------
+#  PUT /api/auth/users/<user_id>/create-projects
+# --------------------------------------------------
+@auth_bp.route("/users/<user_id>/create-projects", methods=["PUT"])
+def create_projects(user_id):
+    """Set created projects for admin users"""
+    data = request.get_json() or {}
+    projects = data.get("projects", [])
+    
+    if not isinstance(projects, list):
+        return jsonify({"error": "Projects must be an array"}), 400
+    
+    try:
+        # First check if user exists and get their role
+        user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+        if not user_doc:
             return jsonify({"error": "User not found"}), 404
+        
+        if user_doc["role"] != "admin":
+            return jsonify({"error": "Only admin users can have created projects"}), 400
+        
+        # Update user's created projects
+        result = users_col.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"createdProjects": projects}}
+        )
         
         # Return updated user
         updated_user = users_col.find_one({"_id": ObjectId(user_id)})
@@ -128,7 +182,7 @@ def assign_projects(user_id):
 # --------------------------------------------------
 @auth_bp.route("/users/<user_id>/add-project", methods=["POST"])
 def add_project_to_user(user_id):
-    """Add a single project to user's assigned projects"""
+    """Add a single project to user's projects"""
     data = request.get_json() or {}
     project = data.get("project")
     
@@ -136,14 +190,21 @@ def add_project_to_user(user_id):
         return jsonify({"error": "Project is required"}), 400
     
     try:
-        # Add project to user's assigned projects (avoid duplicates)
+        # First check if user exists and get their role
+        user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+        if not user_doc:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Add project to appropriate field based on role
+        if user_doc["role"] == "admin":
+            field = "createdProjects"
+        else:
+            field = "assignedProjects"
+        
         result = users_col.update_one(
             {"_id": ObjectId(user_id)},
-            {"$addToSet": {"assignedProjects": project}}
+            {"$addToSet": {field: project}}
         )
-        
-        if result.matched_count == 0:
-            return jsonify({"error": "User not found"}), 404
         
         # Return updated user
         updated_user = users_col.find_one({"_id": ObjectId(user_id)})
@@ -157,7 +218,7 @@ def add_project_to_user(user_id):
 # --------------------------------------------------
 @auth_bp.route("/users/<user_id>/remove-project", methods=["DELETE"])
 def remove_project_from_user(user_id):
-    """Remove a project from user's assigned projects"""
+    """Remove a project from user's projects"""
     data = request.get_json() or {}
     project = data.get("project")
     
@@ -165,14 +226,21 @@ def remove_project_from_user(user_id):
         return jsonify({"error": "Project is required"}), 400
     
     try:
-        # Remove project from user's assigned projects
+        # First check if user exists and get their role
+        user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+        if not user_doc:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Remove project from appropriate field based on role
+        if user_doc["role"] == "admin":
+            field = "createdProjects"
+        else:
+            field = "assignedProjects"
+        
         result = users_col.update_one(
             {"_id": ObjectId(user_id)},
-            {"$pull": {"assignedProjects": project}}
+            {"$pull": {field: project}}
         )
-        
-        if result.matched_count == 0:
-            return jsonify({"error": "User not found"}), 404
         
         # Return updated user
         updated_user = users_col.find_one({"_id": ObjectId(user_id)})
@@ -186,18 +254,56 @@ def remove_project_from_user(user_id):
 # --------------------------------------------------
 @auth_bp.route("/users/<user_id>/projects", methods=["GET"])
 def get_user_projects(user_id):
-    """Get user's assigned projects"""
+    """Get user's projects"""
     try:
         user_doc = users_col.find_one({"_id": ObjectId(user_id)})
         
         if not user_doc:
             return jsonify({"error": "User not found"}), 404
         
-        return jsonify({
+        response_data = {
             "userId": user_id,
             "username": user_doc["username"],
-            "assignedProjects": user_doc.get("assignedProjects", [])
-        }), 200
+            "role": user_doc["role"]
+        }
+        
+        # Add role-specific project data
+        if user_doc["role"] == "admin":
+            response_data["createdProjects"] = user_doc.get("createdProjects", [])
+        else:
+            response_data["assignedProjects"] = user_doc.get("assignedProjects", [])
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        return jsonify({"error": "Invalid user ID"}), 400
+
+# --------------------------------------------------
+#  GET /api/auth/users
+# --------------------------------------------------
+@auth_bp.route("/users", methods=["GET"])
+def get_all_users():
+    """Get all users (for admin purposes)"""
+    try:
+        users = users_col.find({}, {"password": 0})  # Exclude password field
+        user_list = [serialize_user(user) for user in users]
+        return jsonify({"users": user_list}), 200
+    except Exception as e:
+        return jsonify({"error": "Failed to fetch users"}), 500
+
+# --------------------------------------------------
+#  GET /api/auth/users/<user_id>
+# --------------------------------------------------
+@auth_bp.route("/users/<user_id>", methods=["GET"])
+def get_user(user_id):
+    """Get a specific user by ID"""
+    try:
+        user_doc = users_col.find_one({"_id": ObjectId(user_id)})
+        
+        if not user_doc:
+            return jsonify({"error": "User not found"}), 404
+        
+        return jsonify({"user": serialize_user(user_doc)}), 200
         
     except Exception as e:
         return jsonify({"error": "Invalid user ID"}), 400

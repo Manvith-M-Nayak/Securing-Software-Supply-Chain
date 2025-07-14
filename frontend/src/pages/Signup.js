@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function Signup() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: '',
     role: '',
-    githubUsername: '',
-    assignedProjects: [] // New field for assigned projects
+    githubUsername: ''
   });
 
   const [loading, setLoading] = useState(false);
-  const [projectInput, setProjectInput] = useState(''); // For adding projects
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,27 +22,10 @@ function Signup() {
     }));
   };
 
-  const addProject = () => {
-    if (projectInput.trim() && !formData.assignedProjects.includes(projectInput.trim())) {
-      setFormData(prevState => ({
-        ...prevState,
-        assignedProjects: [...prevState.assignedProjects, projectInput.trim()]
-      }));
-      setProjectInput('');
-    }
-  };
-
-  const removeProject = (projectToRemove) => {
-    setFormData(prevState => ({
-      ...prevState,
-      assignedProjects: prevState.assignedProjects.filter(project => project !== projectToRemove)
-    }));
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    const { username, email, password, confirmPassword, role, githubUsername, assignedProjects } = formData;
+    const { username, email, password, confirmPassword, role, githubUsername } = formData;
 
     if (!username || !email || !password || !confirmPassword || !role || !githubUsername) {
       alert('Please fill in all fields, including role and GitHub username');
@@ -56,20 +39,28 @@ function Signup() {
 
     setLoading(true);
     try {
-      // Using fetch instead of axios since axios import was removed
+      // Prepare request body with empty project arrays based on role
+      const requestBody = {
+        username,
+        email,
+        password,
+        role,
+        githubUsername
+      };
+
+      // Add the appropriate empty projects field based on role
+      if (role === 'admin') {
+        requestBody.createdProjects = [];
+      } else {
+        requestBody.assignedProjects = [];
+      }
+
       const response = await fetch('http://localhost:5001/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          username,
-          email,
-          password,
-          role,
-          githubUsername,
-          assignedProjects
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -79,9 +70,20 @@ function Signup() {
 
         alert('Registration successful! You are now logged in.');
         
-        // Note: In a real app, you'd navigate based on user role
-        // For this demo, we'll just show success
-        console.log('User registered:', user);
+        // Navigate to the appropriate page based on user role
+        switch (user.role) {
+          case 'admin':
+            navigate('/admin');
+            break;
+          case 'developer':
+            navigate('/dev');
+            break;
+          case 'auditor':
+            navigate('/auditor');
+            break;
+          default:
+            navigate('/dashboard'); // fallback route
+        }
         
         // Reset form after successful registration
         setFormData({
@@ -90,8 +92,7 @@ function Signup() {
           password: '',
           confirmPassword: '',
           role: '',
-          githubUsername: '',
-          assignedProjects: []
+          githubUsername: ''
         });
       } else {
         throw new Error(data.error || data.message || 'Registration failed');
@@ -106,13 +107,13 @@ function Signup() {
   };
 
   const goToLogin = () => {
-    alert('In a real app, this would navigate to login page');
+    navigate('/login');
   };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addProject();
+      handleRegister(e);
     }
   };
 
@@ -187,83 +188,13 @@ function Signup() {
             onChange={handleChange}
             style={inputStyle}
             disabled={loading}
+            onKeyPress={handleKeyPress}
           >
             <option value="">Select Role</option>
             <option value="developer">Developer</option>
             <option value="auditor">Auditor</option>
             <option value="admin">Admin</option>
           </select>
-        </div>
-
-        {/* Assigned Projects Section */}
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-            Assigned Projects (Optional)
-          </label>
-          <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
-            <input
-              type="text"
-              value={projectInput}
-              onChange={(e) => setProjectInput(e.target.value)}
-              placeholder="Enter project name"
-              style={{ ...inputStyle, flex: 1 }}
-              disabled={loading}
-              onKeyPress={handleKeyPress}
-            />
-            <button
-              type="button"
-              onClick={addProject}
-              disabled={loading || !projectInput.trim()}
-              style={{
-                padding: '10px 15px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: loading || !projectInput.trim() ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Add
-            </button>
-          </div>
-          
-          {/* Display assigned projects */}
-          {formData.assignedProjects.length > 0 && (
-            <div style={{ border: '1px solid #ccc', borderRadius: '4px', padding: '10px' }}>
-              <strong>Assigned Projects:</strong>
-              <div style={{ marginTop: '5px' }}>
-                {formData.assignedProjects.map((project, index) => (
-                  <div key={index} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center',
-                    padding: '5px',
-                    backgroundColor: '#f8f9fa',
-                    marginBottom: '5px',
-                    borderRadius: '3px'
-                  }}>
-                    <span>{project}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeProject(project)}
-                      disabled={loading}
-                      style={{
-                        padding: '2px 6px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: '12px'
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         <button

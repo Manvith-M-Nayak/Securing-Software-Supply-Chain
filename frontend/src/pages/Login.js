@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-function Login() {
+function Login({ setUser }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,9 +24,24 @@ function Login() {
       });
 
       if (response.status === 200) {
+        const responseData = response.data;
+        console.log('Login response data:', responseData);
+        
+        // Extract the actual user data from the response
+        // Handle both nested { user: {...} } and flat {...} structures
+        const userData = responseData.user || responseData;
+        console.log('Extracted user data:', userData);
+        
+        // Store the flat user data in localStorage
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Update the user state in App component with flat data
+        setUser(userData);
         
         alert('Login successful!');
-        navigate('/dashboard'); // Navigate to home page after successful login
+        
+        // The navigation will happen automatically through App.js routing
+        // based on the user role when setUser triggers a re-render
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -115,4 +130,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default Login; 

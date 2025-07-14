@@ -1,44 +1,42 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import AdminCommitHistory from "./AdminCommitHistory";
 import AdminRoleManager from "./AdminRoleManager";
 import AdminCreateProject from "./AdminCreateProject";
 
 function AdminDashboard() {
   const [user, setUser] = useState(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     // Retrieve user info from localStorage
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (err) {
-        console.error("Failed to parse user from localStorage:", err);
-      }
+    const userData = JSON.parse(localStorage.getItem('user'));
+    if (userData) {
+      setUser(userData);
     } else {
       console.warn("No user found in localStorage");
+      // If no user, redirect to login immediately
+      window.location.href = "/";
+      return;
     }
   }, []);
 
   const handleLogout = () => {
-    // Clear user data from localStorage
-    localStorage.removeItem("user");
-    // Clear local state
-    setUser(null);
-    // Redirect to login page
-    navigate("/");
+    try {
+      // Clear user data from localStorage
+      localStorage.removeItem("user");
+      // Clear local state
+      setUser(null);
+      // Force redirect to login page with window.location for immediate redirect
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Error during logout:", err);
+      // Even if there's an error, still try to navigate
+      window.location.href = "/";
+    }
   };
 
+  // Don't render anything if user is null (should redirect anyway)
   if (!user) {
-    return (
-      <div style={{ padding: "20px", fontFamily: "Arial", color: "red" }}>
-        <h2>⚠️ User not logged in</h2>
-        <p>Please login again to continue.</p>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -65,15 +63,15 @@ function AdminDashboard() {
       </div>
 
       <div style={{ marginBottom: "30px" }}>
-        <AdminCreateProject user={user} />
+        <AdminCreateProject />
       </div>
 
       <div style={{ marginBottom: "30px" }}>
-        <AdminRoleManager user={user} />
+        <AdminRoleManager />
       </div>
 
       <div style={{ marginBottom: "30px" }}>
-        <AdminCommitHistory user={user} />
+        <AdminCommitHistory />
       </div>
     </div>
   );
