@@ -34,3 +34,5 @@ Thumbs.db
 # === Environment/Secrets ===
 .env
 .env.*
+
+/codeql-linux64.zip
