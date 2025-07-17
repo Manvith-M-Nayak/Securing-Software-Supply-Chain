@@ -1,9 +1,11 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
+
 from config.db import connect_db
 from routes.auth_routes import auth_bp
-from routes.version_routes import version_routes
-from routes.admin_routes import admin_bp  # ✅ this will now work
+from routes.developer_routes import dev_bp
+from routes.admin_routes import admin_bp
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
@@ -17,8 +19,8 @@ def home():
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
-app.register_blueprint(version_routes, url_prefix='/api/versions')
-app.register_blueprint(admin_bp, url_prefix='/admin')  
+app.register_blueprint(admin_bp, url_prefix='/admin')
+app.register_blueprint(dev_bp)                     # '/api/…' paths are inside file
 
 if __name__ == '__main__':
     import os

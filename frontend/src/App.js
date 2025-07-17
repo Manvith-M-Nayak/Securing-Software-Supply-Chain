@@ -5,7 +5,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminDashboard from './pages/AdminDashboard';
-// import DevDashboard from './pages/DevDashboard';
+import DeveloperDashboard from './pages/DeveloperDashboard';
 // import AuditorDashboard from './pages/AuditorDashboard';
 
 function App() {
@@ -108,17 +108,17 @@ function App() {
             )
           } 
         />
-        {/* <Route 
+        <Route 
           path="/dev" 
           element={
             user && user.role === 'developer' ? (
-              <DevDashboard user={user} onLogout={handleLogout} />
+              <DeveloperDashboard onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )
           } 
         />
-        <Route 
+        {/* <Route 
           path="/auditor" 
           element={
             user && user.role === 'auditor' ? (
