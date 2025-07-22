@@ -6,7 +6,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AdminDashboard from './pages/AdminDashboard';
 import DeveloperDashboard from './pages/DeveloperDashboard';
-// import AuditorDashboard from './pages/AuditorDashboard';
+import AuditorDashboard from './pages/AuditorDashboard';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -118,7 +118,7 @@ function App() {
             )
           } 
         />
-        {/* <Route 
+        <Route 
           path="/auditor" 
           element={
             user && user.role === 'auditor' ? (
@@ -127,7 +127,7 @@ function App() {
               <Navigate to="/" replace />
             )
           } 
-        /> */}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

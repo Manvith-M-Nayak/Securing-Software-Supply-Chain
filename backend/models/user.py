@@ -1,16 +1,23 @@
-# User model for MongoDB
+from bson.objectid import ObjectId
 
-def user_doc(username, email, password, role, github_username, github_token, assigned_projects=None, created_projects=None):
-    doc = {
-        "username": username,
-        "email": email,
-        "password": password,
-        "role": role,  # developer, admin, auditor
-        "githubUsername": github_username,
-        "githubToken": github_token,
-    }
-    if role == "admin":
-        doc["createdProjects"] = created_projects or []
-    else:
-        doc["assignedProjects"] = assigned_projects or []
-    return doc 
+class User:
+    @staticmethod
+    def find_by_email(db, email):
+        user = db.users.find_one({"email": email})
+        if user:
+            return {
+                "email": user.get("email"),
+                "role": user.get("role"),
+                "assignedProjects": user.get("assignedProjects", []),
+                "createdProjects": user.get("createdProjects", []),
+                "projectMetadata": user.get("projectMetadata", {})
+            }
+        return None
+
+    @staticmethod
+    def update_assigned_projects(db, email, project_data):
+        result = db.users.update_one(
+            {"email": email},
+            {"$push": {"assignedProjects": project_data}}
+        )
+        return result.modified_count > 0
