@@ -1,18 +1,8 @@
-"""
-Developer‑facing API endpoints (NO authentication).
-
-Exposes:
-    • POST  /webhook                        ← GitHub calls this
-    • GET   /api/commits
-    • PATCH /api/commits/<commit_id>/mark-onchain
-    • GET   /api/projects
-    • PATCH /api/projects/<project_id>/toggle-active
-    • GET   /api/project-repos
-"""
-
 from datetime import datetime
 from bson.objectid import ObjectId
 from flask import Blueprint, jsonify, request
+import subprocess
+import json
 
 from config.db import connect_db
 
@@ -49,7 +39,7 @@ def github_webhook():
         commit_id = c.get("id")
         if not commit_id or not isinstance(commit_id, str) or not commit_id.strip():
             skipped.append(c)
-            continue  # Skip commits with invalid or missing id
+            continue
 
         commit_doc = {
             "id": commit_id,
@@ -93,6 +83,7 @@ def list_commits():
                 assigned_names.append(p["name"])
         else:
             assigned_names.append(str(p))
+
     assigned_names = list(dict.fromkeys(assigned_names))
 
     q_project = request.args.get("project")
@@ -100,21 +91,18 @@ def list_commits():
     q_email = request.args.get("email") or user.get("email")
 
     mongo_filter = {}
-
     if q_project:
         mongo_filter["projectName"] = q_project
     elif assigned_names:
         mongo_filter["projectName"] = {"$in": assigned_names}
-
     if q_author:
         mongo_filter["author"] = q_author
-
     if q_email:
         mongo_filter["authorEmail"] = {"$regex": q_email, "$options": "i"}
 
     commits = list(
         db.commits
-          .find(mongo_filter, {"_id": 0})    # include blockchainTxHash if present
+          .find(mongo_filter, {"_id": 0})
           .sort("timestamp", -1)
     )
     return jsonify(commits), 200
@@ -141,6 +129,54 @@ def mark_commit_onchain(commit_id):
         },
     )
     return jsonify({"message": "Commit flagged on‑chain"}), 200
+
+# ─────── 2.1 POST /api/commits/<id>/store-onchain ← Full blockchain flow ─────
+@dev_bp.route("/api/commits/<commit_id>/store-onchain", methods=["POST"])
+def store_commit_onchain(commit_id):
+    commit = db.commits.find_one({"id": commit_id})
+    if not commit:
+        return jsonify({"error": "Commit not found"}), 404
+    if commit.get("isOnBlockchain") and commit.get("blockchainTxHash"):
+        return jsonify({"message": "Commit already stored on chain"}), 200
+
+    # Use a Node script or similar to submit to blockchain
+    try:
+        # Construct command to call blockchain write (Node.js preferred)
+        cmd = [
+            "node",
+            "blockchain/store_commit.js",  # this script should handle ethers logic
+            json.dumps({
+                "projectName": commit["projectName"],
+                "commitId": commit["id"],
+                "message": commit["message"],
+                "authorEmail": commit["authorEmail"],
+                "timestamp": commit["timestamp"]
+            })
+        ]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            return jsonify({"error": result.stderr}), 500
+
+        output = json.loads(result.stdout)
+        tx_hash = output.get("transactionHash")
+        if not tx_hash:
+            return jsonify({"error": "No transaction hash returned"}), 500
+
+        # Mark it in DB
+        db.commits.update_one(
+            {"id": commit_id},
+            {
+                "$set": {
+                    "isOnBlockchain": True,
+                    "blockchainTxHash": tx_hash,
+                    "onChainAt": datetime.utcnow(),
+                }
+            },
+        )
+
+        return jsonify({"message": "Commit stored on-chain", "txHash": tx_hash}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ──────────────────────────── 3. GET /api/projects ───────────────────────────
 @dev_bp.route("/api/projects", methods=["GET"])

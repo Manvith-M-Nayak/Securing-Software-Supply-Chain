@@ -5,6 +5,7 @@ from config.db import connect_db
 from routes.auth_routes import auth_bp
 from routes.developer_routes import dev_bp
 from routes.admin_routes import admin_bp
+from routes.webhook_routes import webhook_bp
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -21,6 +22,7 @@ def home():
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(dev_bp)                     # '/api/…' paths are inside file
+app.register_blueprint(webhook_bp, url_prefix="/api")
 
 if __name__ == '__main__':
     import os

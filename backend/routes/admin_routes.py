@@ -8,7 +8,7 @@ users_col = db['users']
 projects_col = db['projects']
 access_col = db['access_requests']
 
-@admin_bp.route('/users', methods=['GET'])
+@admin_bp.route('/users ', methods=['GET'])
 def get_users():
     try:
         users = list(users_col.find({'role': {'$in': ['developer', 'auditor']}}, {'password': 0}))

@@ -6,6 +6,12 @@ __pycache__/
 env/
 venv/
 mye/
+ml/
+microsoft_model/
+mode_with_megavul/
+msr_model/
+model_with_threshold/
+threat_model/
 
 # === Node.js ===
 **/node_modules/
