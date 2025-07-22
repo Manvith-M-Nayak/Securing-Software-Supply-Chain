@@ -3,6 +3,7 @@ from bson.objectid import ObjectId
 from flask import Blueprint, jsonify, request
 import subprocess
 import json
+import requests
 
 from config.db import connect_db
 
@@ -188,7 +189,7 @@ def list_projects():
     return jsonify(user.get("assignedProjects", [])), 200
 
 # ──────────────── 4. PATCH /api/projects/<id>/toggle-active ──────────────────
-@dev_bp.route("/api/projects/<project_id>/toggle-active", methods=["PATCH"])
+@dev_bp.route("/api/projects/<id>/toggle-active", methods=["PATCH"])
 def toggle_project(project_id):
     user = _debug_user()
     if not user:
@@ -234,3 +235,58 @@ def project_repos():
                 result[proj] = explicit or f"https://github.com/{owner}/{proj}"
 
     return jsonify(result), 200
+
+# ───────────────────── 6. GET /api/pullrequests ──────────────────────────────
+@dev_bp.route("/api/pullrequests", methods=["GET"])
+def list_pullrequests():
+    user = _debug_user()
+    if not user:
+        return jsonify({"error": "No developer found"}), 404
+
+    # Get developer's assigned projects
+    assigned_projects = [p.get("projectName") for p in user.get("assignedProjects", []) if isinstance(p, dict) and "projectName" in p]
+    if not assigned_projects:
+        return jsonify({"message": "No assigned projects"}), 200
+
+    # Find admin with matching created projects
+    admins = db.users.find({"role": "admin", "createdProjects": {"$in": assigned_projects}})
+    admin = next(admins, None)
+    if not admin:
+        return jsonify({"error": "No admin found for assigned projects"}), 404
+
+    github_token = admin.get("githubToken", "")
+    repo_owner = admin.get("githubUsername", "Manvith-M-Nayak")
+    headers = {"Authorization": f"token {github_token}", "Accept": "application/vnd.github.v3+json"}
+    developer_name = user.get("githubUsername", "").lower() or user.get("username", "").lower()
+
+    pullrequests = []
+    for project_name in assigned_projects:
+        repo_url = f"https://api.github.com/repos/{repo_owner}/{project_name}/pulls?state=all"
+        try:
+            response = requests.get(repo_url, headers=headers)
+            if response.status_code == 200:
+                prs = response.json()
+                for pr in prs:
+                    pr_id = str(pr["number"])
+                    developer = pr["user"]["login"].lower()
+                    if developer != developer_name:
+                        continue
+                    pullrequest_data = {
+                        "pullRequestId": pr_id,
+                        "projectName": project_name,
+                        "developer": developer,
+                        "timestamp": pr["created_at"],
+                        "status": "approved" if pr.get("merged_at") else ("rejected" if pr["state"] == "closed" else "pending"),
+                        "changedFiles": []
+                    }
+                    files_url = f"https://api.github.com/repos/{repo_owner}/{project_name}/pulls/{pr_id}/files"
+                    files_response = requests.get(files_url, headers=headers)
+                    if files_response.status_code == 200:
+                        pullrequest_data["changedFiles"] = [{"filename": file["filename"], "additions": file["additions"], "deletions": file["deletions"]} for file in files_response.json()]
+                    pullrequests.append(pullrequest_data)
+            else:
+                print(f"Failed to fetch PRs for {project_name}: {response.status_code} - {response.text}")  # Debug log
+        except Exception as e:
+            print(f"Error fetching PRs for {project_name}: {str(e)}")  # Debug log
+
+    return jsonify(pullrequests), 200

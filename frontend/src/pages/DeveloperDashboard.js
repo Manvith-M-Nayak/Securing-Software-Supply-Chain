@@ -1,43 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { ethers } from "ethers";
 import axios from "axios";
 
-import ABI from "../abis/SoftwareRegistry.json";
-import deployed from "../contracts/deployed_addresses.json";
-
-const GANACHE_RPC_URL = process.env.REACT_APP_GANACHE_RPC_URL || "http://127.0.0.1:8545";
-const PRIVATE_KEY = process.env.REACT_APP_PRIVATE_KEY;
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5001";
 
-if (!PRIVATE_KEY) {
-  throw new Error("Missing REACT_APP_PRIVATE_KEY in .env");
-}
-
 function DeveloperDashboard() {
-  const [contract, setContract] = useState(null);
-  const [wallet, setWallet] = useState(null);
-  const [account, setAccount] = useState("");
-  const [commits, setCommits] = useState([]);
+  const [pullRequests, setPullRequests] = useState([]);
   const [status, setStatus] = useState("Loading...");
-  const [justStoredIds, setJustStoredIds] = useState([]);
   const [user, setUser] = useState(null);
-  const [failedCommits, setFailedCommits] = useState(new Set());
-
-  // Initialize wallet and contract
-  useEffect(() => {
-    try {
-      const provider = new ethers.JsonRpcProvider(GANACHE_RPC_URL);
-      const signer = new ethers.Wallet(PRIVATE_KEY, provider);
-      const instance = new ethers.Contract(deployed.SoftwareRegistry, ABI, signer);
-
-      setWallet(signer);
-      setContract(instance);
-      setAccount(signer.address);
-    } catch (err) {
-      console.error("Contract or Wallet Init Failed", err);
-      setStatus("Blockchain connection error.");
-    }
-  }, []);
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState("");
 
   // Load user
   useEffect(() => {
@@ -45,101 +16,78 @@ function DeveloperDashboard() {
       const u = JSON.parse(localStorage.getItem("user"));
       if (u) {
         setUser(u);
+        console.log("Loaded user:", u);
       } else {
         setStatus("User not logged in.");
       }
     } catch (err) {
-      console.error("User load failed");
+      console.error("User load failed", err);
+      setStatus("Failed to load user.");
     }
   }, []);
 
-  // Fetch all commits
+  // Fetch projects
   useEffect(() => {
     if (!user) return;
 
-    const fetchCommits = async () => {
+    const fetchProjects = async () => {
       try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/commits`);
-        setCommits(Array.isArray(data) ? data : []);
+        const { data } = await axios.get(`${API_BASE_URL}/api/projects`);
+        const projectNames = data.map(p => p.projectName || p.name).filter(Boolean);
+        setProjects(projectNames);
+        if (projectNames.length > 0) {
+          setSelectedProject(projectNames[0]); // Default to first project
+        }
       } catch (err) {
-        console.error("Commit fetch failed", err);
+        console.error("Project fetch failed", err);
       }
     };
 
-    fetchCommits();
-    const interval = setInterval(fetchCommits, 30000);
+    fetchProjects();
+  }, [user]);
+
+  // Fetch all pull requests
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchPullRequests = async () => {
+      try {
+        console.log("Fetching pull requests for user:", user.githubUsername || user.username);
+        const { data } = await axios.get(`${API_BASE_URL}/api/pullrequests`);
+        console.log("Raw API response:", data);
+        const uniquePullRequests = Array.from(new Map(data.map(pr => [JSON.stringify([pr.pullRequestId, pr.projectName]), pr])).values());
+        console.log("Unique pull requests:", uniquePullRequests);
+        setPullRequests(uniquePullRequests);
+        if (Array.isArray(uniquePullRequests) && uniquePullRequests.length > 0) {
+          setStatus("Loaded.");
+        } else {
+          setStatus("No pull requests found.");
+        }
+      } catch (err) {
+        console.error("Pull request fetch failed", err);
+        setStatus(`Failed to fetch pull requests: ${err.message}`);
+      }
+    };
+
+    fetchPullRequests();
+    const interval = setInterval(fetchPullRequests, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
-  const userCommits = commits.filter((commit) => {
+  const userPullRequests = pullRequests.filter((pr) => {
     const name = user?.githubUsername?.toLowerCase() || user?.username?.toLowerCase();
-    const email = user?.email?.toLowerCase();
-    const aName = commit.author?.toLowerCase() || "";
-    const aEmail = commit.authorEmail?.toLowerCase() || "";
-    return aName === name || aEmail.includes(email);
+    const dName = pr.developer?.toLowerCase() || "";
+    const projectMatch = !selectedProject || pr.projectName === selectedProject;
+    const matches = dName === name && projectMatch;
+    console.log(`Filtering PR ${pr.pullRequestId} (${pr.projectName}): developer=${dName}, projectMatch=${projectMatch}, matches=${matches}`);
+    return matches;
   });
 
-  useEffect(() => {
-    if (!wallet || !contract || !account || userCommits.length === 0) return;
-
-    let isMounted = true;
-
-    const pushCommitsSequentially = async () => {
-      for (const c of userCommits) {
-        if (!isMounted) return;
-        if (c.isOnBlockchain || !c.projectName || failedCommits.has(c.id)) continue;
-
-        const { id, message, author, timestamp, projectName, filesChanged = [] } = c;
-
-        const payload = JSON.stringify({
-          message: message || "",
-          author: author || "",
-          timestamp: timestamp || Date.now(),
-          filesChanged: filesChanged,
-        });
-
-        try {
-          setStatus(`Pushing commit ${id}...`);
-
-          const tx = await contract.storeCommit(projectName, id, payload, account);
-          await tx.wait();
-
-          await axios.patch(`${API_BASE_URL}/api/commits/${id}/mark-onchain`, {
-            txHash: tx.hash,
-          });
-
-          setCommits((prev) =>
-            prev.map((commit) =>
-              commit.id === id
-                ? {
-                    ...commit,
-                    isOnBlockchain: true,
-                    blockchainTxHash: tx.hash,
-                  }
-                : commit
-            )
-          );
-
-          setJustStoredIds((prev) => [...prev, id]);
-          setTimeout(() => {
-            setJustStoredIds((prev) => prev.filter((x) => x !== id));
-          }, 4000);
-        } catch (err) {
-          console.error(`Commit ${id} failed`, err);
-          setFailedCommits((prev) => new Set(prev).add(id));
-          setStatus(`Commit ${id} failed.`);
-        }
-      }
-
-      setStatus("Done processing.");
-    };
-
-    pushCommitsSequentially();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [wallet, contract, account, userCommits]);
+  const pullRequestCount = userPullRequests.length;
+  const pullRequestStatuses = userPullRequests.reduce((acc, pr) => {
+    acc[pr.status] = (acc[pr.status] || 0) + 1;
+    return acc;
+  }, { pending: 0, approved: 0, rejected: 0 });
 
   const fmt = (t) => new Date(t).toLocaleString();
 
@@ -162,35 +110,52 @@ function DeveloperDashboard() {
       </header>
 
       <main className="bg-white p-6 rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Your Commits</h2>
-        {userCommits.map((c) => (
-          <div key={c.id} className="border p-4 rounded mb-4 bg-gray-50 hover:shadow transition">
+        <section className="mb-6">
+          <h2 className="text-xl font-semibold mb-2">Pull Request Overview</h2>
+          <p className="text-gray-700">Total Pull Requests: {pullRequestCount}</p>
+          <div className="mt-2">
+            <p className="text-gray-700">Status Breakdown:</p>
+            <ul className="list-disc pl-5 text-gray-600">
+              <li>Pending: {pullRequestStatuses.pending}</li>
+              <li>Approved: {pullRequestStatuses.approved}</li>
+              <li>Rejected: {pullRequestStatuses.rejected}</li>
+            </ul>
+          </div>
+        </section>
+
+        <h2 className="text-xl font-semibold mb-4">Your Pull Requests</h2>
+        <div className="mb-4">
+          <label htmlFor="project-select" className="mr-2">Filter by Project:</label>
+          <select
+            id="project-select"
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="p-2 border rounded"
+          >
+            <option value="">All Projects</option>
+            {projects.map((project) => (
+              <option key={project} value={project}>
+                {project}
+              </option>
+            ))}
+          </select>
+        </div>
+        {userPullRequests.map((pr) => (
+          <div key={`${pr.pullRequestId}-${pr.projectName}`} className="border p-4 rounded mb-4 bg-gray-50 hover:shadow transition">
             <div className="flex justify-between mb-2">
-              <strong>{c.message}</strong>
+              <strong>PR #{pr.pullRequestId}</strong>
+              <span className={`text-sm ${pr.status === "approved" ? "text-green-600" : pr.status === "rejected" ? "text-red-600" : "text-yellow-600"}`}>
+                Status: {pr.status}
+              </span>
             </div>
             <p className="text-sm text-gray-700">
-              {c.projectName} • {c.id} • {fmt(c.timestamp)}
+              Project: {pr.projectName} • {fmt(pr.timestamp)}
             </p>
-            {c.blockchainTxHash && (
-              <p className="text-xs text-gray-600 break-all mt-1">TX: {c.blockchainTxHash}</p>
-            )}
-            <div className="mt-2 bg-white rounded p-2">
-              <h4 className="font-semibold text-sm mb-1">Files Changed</h4>
-              {Array.isArray(c.filesChanged) && c.filesChanged.length > 0 ? (
-                c.filesChanged.map((f, i) => (
-                  <div key={i} className="text-xs text-gray-800">
-                    {f.filename} +{f.additions} -{f.deletions}
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-gray-500">No file data</p>
-              )}
-            </div>
           </div>
         ))}
 
-        {userCommits.length === 0 && (
-          <p className="text-gray-500 text-center py-8">No commits found.</p>
+        {userPullRequests.length === 0 && (
+          <p className="text-gray-500 text-center py-8">No pull requests found.</p>
         )}
         <p className="mt-6 text-sm">{status}</p>
       </main>
