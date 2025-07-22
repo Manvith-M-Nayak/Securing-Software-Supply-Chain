@@ -72,7 +72,7 @@ def receive_commit():
 
         # Broadcast the transaction to the blockchain
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-
+        
         # Wait for the transaction to be mined
         tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 

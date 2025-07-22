@@ -56,6 +56,34 @@ function AdminCreateProject() {
     return JSON.parse(text)
   }
 
+ const protectMainBranch = async (projectName, githubUsername, githubToken) => {
+  const protectionUrl = `https://api.github.com/repos/${githubUsername}/${projectName}/branches/main/protection`;
+
+  const res = await fetch(protectionUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `token ${githubToken}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/vnd.github+json',
+    },
+    body: JSON.stringify({
+      required_status_checks: null, // No status checks required
+      enforce_admins: true, // Enforce protection for admins
+      required_pull_request_reviews: {
+        dismiss_stale_reviews: false, // Don’t dismiss stale reviews
+        require_code_owner_reviews: false, // No code owner reviews required
+        required_approving_review_count: 1, // Require 1 approval
+      },
+      restrictions: null, // Explicitly null for personal repos
+    }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || 'Branch protection failed');
+  return JSON.parse(text);
+};
+
+
   const handleCreate = async () => {
     if (!userData || !userData.githubUsername) {
       setStatus('Admin GitHub username missing')
@@ -86,19 +114,24 @@ function AdminCreateProject() {
       setStatus('Creating repository')
       const repoData = await createGitHubRepo(name.trim(), userData.githubToken)
       setStatus('Creating webhook')
-      const webhookUrl = `${PUBLIC_BASE_URL}/webhooks/github/${name.trim()}`
-      const webhookData = await createWebhook(name.trim(), userData.githubUsername, userData.githubToken, webhookUrl)
-      await fetch('http://localhost:5001/admin/update_project', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          githubRepoUrl: repoData.html_url,
-          githubRepoId: repoData.id,
-          webhookId: webhookData.id,
-          webhookUrl: webhookUrl
-        })
-      })
+const webhookUrl = `${PUBLIC_BASE_URL}/webhooks/github/${name.trim()}`
+const webhookData = await createWebhook(name.trim(), userData.githubUsername, userData.githubToken, webhookUrl)
+
+// ➕ NEW STEP: Protect main branch after webhook is created
+setStatus('Protecting main branch (only PRs allowed)')
+await protectMainBranch(name.trim(), userData.githubUsername, userData.githubToken)
+
+await fetch('http://localhost:5001/admin/update_project', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: name.trim(),
+    githubRepoUrl: repoData.html_url,
+    githubRepoId: repoData.id,
+    webhookId: webhookData.id,
+    webhookUrl: webhookUrl
+  })
+})
       setStatus(`Project "${name.trim()}" created`)
       setName('')
     } catch (err) {
