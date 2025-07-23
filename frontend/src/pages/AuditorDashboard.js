@@ -105,7 +105,6 @@ const AuditorDashboard = ({ user, onLogout }) => {
             <p><strong>Version:</strong> {pr.version}</p>
             <p><strong>Developer:</strong> {pr.developer}</p>
             <p><strong>Timestamp:</strong> {new Date(pr.timestamp).toLocaleString()}</p>
-            <p><strong>Security Score:</strong> {pr.securityScore || 'N/A'}</p>
             <p><strong>Changed Files:</strong></p>
             <ul className="list-disc pl-5">
               {pr.changedFiles.map((file, index) => (
