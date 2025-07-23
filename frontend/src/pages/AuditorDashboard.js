@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const AuditorDashboard = ({ user, onLogout }) => {
@@ -7,16 +7,8 @@ const AuditorDashboard = ({ user, onLogout }) => {
   const [error, setError] = useState(null);
   const [projectName, setProjectName] = useState('');
 
-  useEffect(() => {
-    if (projectName) {
-      fetchPullRequests();
-    } else {
-      setPullRequests([]);
-      setLoading(false);
-    }
-  }, [projectName]);
-
-  const fetchPullRequests = async () => {
+  const fetchPullRequests = useCallback(async () => {
+    if (!projectName) return;
     setLoading(true);
     try {
       console.log('Fetching pull requests for projectName:', projectName, 'with email:', user.email);
@@ -26,25 +18,48 @@ const AuditorDashboard = ({ user, onLogout }) => {
       setPullRequests(response.data.pullRequests || []);
       setError(null);
     } catch (err) {
-      setError(`Failed to fetch pull requests: ${err.message} (Status: ${err.response?.status})`);
-      console.error('Error fetching pull requests:', err.response?.data || err);
+      const errorMessage = `Failed to fetch pull requests: ${err.message} (Status: ${err.response?.status || 'N/A'})`;
+      setError(errorMessage);
+      console.error('Error details:', {
+        message: err.message,
+        code: err.code,
+        response: err.response?.data,
+        status: err.response?.status,
+        headers: err.response?.headers,
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectName, user.email]);
+
+  useEffect(() => {
+    if (projectName) {
+      fetchPullRequests();
+    } else {
+      setPullRequests([]);
+      setLoading(false);
+    }
+  }, [projectName, fetchPullRequests]);
 
   const handleDecision = async (pullRequestId, decision) => {
     try {
       await axios.post('http://localhost:5001/auditor/decision', {
         pullRequestId,
-        decision
+        decision,
+        projectName
       }, {
         headers: { 'X-User-Email': user.email }
       });
       fetchPullRequests();
     } catch (err) {
-      setError(`Failed to process decision: ${err.message}`);
-      console.error('Error processing decision:', err.response?.data || err);
+      const errorMessage = `Failed to process decision: ${err.message}`;
+      setError(errorMessage);
+      console.error('Decision error details:', {
+        message: err.message,
+        code: err.code,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
     }
   };
 
@@ -95,7 +110,25 @@ const AuditorDashboard = ({ user, onLogout }) => {
             <ul className="list-disc pl-5">
               {pr.changedFiles.map((file, index) => (
                 <li key={index}>
-                  <strong>{file.filename}</strong>: <pre>{file.content}</pre>
+                  <strong>{file.filename}</strong>
+                  <pre>{file.content}</pre>
+                  <p><strong>Vulnerability Status:</strong> {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}</p>
+                  {file.vulnerability.is_vulnerable && (
+                    <div>
+                      <p><strong>Vulnerability Details:</strong></p>
+                      <ul className="list-disc pl-5">
+                        {Array.isArray(file.vulnerability.details) ? (
+                          file.vulnerability.details.map((vuln, idx) => (
+                            <li key={idx}>
+                              <strong>{vuln.type}</strong> at line {vuln.line}: <pre>{vuln.snippet}</pre>
+                            </li>
+                          ))
+                        ) : (
+                          <li>{file.vulnerability.details}</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
