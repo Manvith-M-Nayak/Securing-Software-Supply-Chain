@@ -1,166 +1,334 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5001";
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
 
-function DeveloperDashboard() {
+// Custom debounce hook
+const useDebounce = (callback, delay) => {
+  const timeoutRef = useRef(null);
+  return useCallback((...args) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callback(...args);
+    }, delay);
+  }, [callback, delay]);
+};
+
+const DeveloperDashboard = () => {
   const [pullRequests, setPullRequests] = useState([]);
-  const [status, setStatus] = useState("Loading...");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState("");
+  const [selectedProject, setSelectedProject] = useState('');
+  const [leaderboard, setLeaderboard] = useState([]);
+  const hasFetchedProjects = useRef(false);
+  const lastFetchedProject = useRef(null);
+  const isMounted = useRef(false);
 
-  // Load user
+  // Validate ObjectId
+  const ObjectId = {
+    isValid: (id) => /^[0-9a-fA-F]{24}$/.test(id)
+  };
+
+  // Memoize user to prevent re-renders
+  const memoizedUser = useMemo(() => user, [user?.id, user?.username, user?.email, user?.githubUsername]);
+
+  // Load user from localStorage
   useEffect(() => {
     try {
-      const u = JSON.parse(localStorage.getItem("user"));
-      if (u) {
+      const u = JSON.parse(localStorage.getItem('user'));
+      if (u && u.id && u.username && ObjectId.isValid(u.id) && u.role === 'developer') {
         setUser(u);
-        console.log("Loaded user:", u);
+        setLoading(false);
       } else {
-        setStatus("User not logged in.");
+        setError('User not logged in or invalid user data. Please log in again.');
+        window.location.href = '/login';
       }
     } catch (err) {
-      console.error("User load failed", err);
-      setStatus("Failed to load user.");
+      console.error('User load failed:', err);
+      setError('Failed to load user. Please log in again.');
+      window.location.href = '/login';
     }
   }, []);
 
+  // Initialize selectedProject from localStorage
+  useEffect(() => {
+    if (projects.length > 0) {
+      const storedProject = localStorage.getItem('selectedProject');
+      if (storedProject && projects.includes(storedProject)) {
+        setSelectedProject(storedProject);
+      } else if (!selectedProject && projects.length > 0) {
+        setSelectedProject(projects[0]);
+      }
+    }
+  }, [projects]);
+
+  // Persist selectedProject to localStorage
+  useEffect(() => {
+    if (selectedProject && projects.includes(selectedProject)) {
+      localStorage.setItem('selectedProject', selectedProject);
+    }
+  }, [selectedProject, projects]);
+
   // Fetch projects
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchProjects = async () => {
-      try {
-        const { data } = await axios.get(`${API_BASE_URL}/api/projects`);
-        const projectNames = data.map(p => p.projectName || p.name).filter(Boolean);
-        setProjects(projectNames);
-        if (projectNames.length > 0) {
-          setSelectedProject(projectNames[0]); // Default to first project
-        }
-      } catch (err) {
-        console.error("Project fetch failed", err);
+  const fetchProjects = useCallback(async () => {
+    if (!memoizedUser?.id || hasFetchedProjects.current) return;
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/admin/user_projects/${memoizedUser.id}`, {
+        headers: { 'X-User-Email': memoizedUser.email }
+      });
+      const projectNames = response.data.projects
+        .map(p => p.projectName || p.name)
+        .filter(p => p && typeof p === 'string' && p.trim())
+        .filter((v, i, a) => a.indexOf(v) === i);
+      setProjects(projectNames);
+      hasFetchedProjects.current = true;
+      if (projectNames.length === 0) {
+        setError('No projects assigned to this user.');
       }
-    };
+    } catch (err) {
+      setError(`Failed to fetch projects: ${err.response?.data?.error || err.message}`);
+      console.error('Project fetch failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [memoizedUser]);
 
-    fetchProjects();
-  }, [user]);
+  // Fetch pull requests and update points
+  const fetchPullRequests = useCallback(async () => {
+    if (!memoizedUser || !selectedProject || !projects.includes(selectedProject) || lastFetchedProject.current === selectedProject) return;
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/pullrequests?project=${selectedProject}`, {
+        headers: { 'X-User-Email': memoizedUser.email }
+      });
+      const uniquePullRequests = Array.from(
+        new Map(response.data.pullrequests.map(pr => [JSON.stringify([pr.pullRequestId, pr.projectName]), pr])).values()
+      );
+      setPullRequests(uniquePullRequests);
+      lastFetchedProject.current = selectedProject;
 
-  // Fetch all pull requests
-  useEffect(() => {
-    if (!user) return;
+      // Calculate points for selected project
+      const userPulls = uniquePullRequests.filter((pr) => {
+        const name = (memoizedUser?.githubUsername || memoizedUser?.username || "").toLowerCase().trim();
+        const dName = (pr.developer || "").toLowerCase().trim();
+        return dName === name && pr.projectName === selectedProject;
+      });
+      const approvedCount = userPulls.filter(pr => pr.status === "approved").length;
+      const rejectedCount = userPulls.filter(pr => pr.status === "rejected").length;
+      const points = approvedCount - rejectedCount;
 
-    const fetchPullRequests = async () => {
+      // Update user points in MongoDB
       try {
-        console.log("Fetching pull requests for user:", user.githubUsername || user.username);
-        const { data } = await axios.get(`${API_BASE_URL}/api/pullrequests`);
-        console.log("Raw API response:", data);
-        const uniquePullRequests = Array.from(new Map(data.map(pr => [JSON.stringify([pr.pullRequestId, pr.projectName]), pr])).values());
-        console.log("Unique pull requests:", uniquePullRequests);
-        setPullRequests(uniquePullRequests);
-        if (Array.isArray(uniquePullRequests) && uniquePullRequests.length > 0) {
-          setStatus("Loaded.");
-        } else {
-          setStatus("No pull requests found.");
-        }
+        await axios.put(`${API_BASE_URL}/api/users/${memoizedUser.id}/points`, {
+          projectName: selectedProject,
+          points
+        }, {
+          headers: { 'X-User-Email': memoizedUser.email }
+        });
+        setUser(prev => ({
+          ...prev,
+          points: { ...prev.points, [selectedProject]: points }
+        }));
       } catch (err) {
-        console.error("Pull request fetch failed", err);
-        setStatus(`Failed to fetch pull requests: ${err.message}`);
+        setError(`Failed to save points to server: ${err.response?.data?.error || err.message}`);
+        console.error('Failed to update user points:', err);
       }
+
+      setError(null);
+    } catch (err) {
+      const errorMessage = `Failed to fetch pull requests: ${err.message} (Status: ${err.response?.status || 'N/A'})`;
+      setError(errorMessage);
+      console.error('Pull request fetch error:', {
+        message: err.message,
+        code: err.code,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [memoizedUser, selectedProject, projects]);
+
+  // Fetch leaderboard
+  const fetchLeaderboard = useCallback(async () => {
+    if (!selectedProject || !projects.includes(selectedProject) || lastFetchedProject.current === selectedProject) return;
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/admin/leaderboard?project=${selectedProject}`, {
+        headers: { 'X-User-Email': memoizedUser.email }
+      });
+      setLeaderboard(response.data.developers || []);
+      setError(null);
+    } catch (err) {
+      setError(`Failed to fetch leaderboard: ${err.response?.data?.error || err.message}`);
+      console.error('Leaderboard fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [memoizedUser, selectedProject, projects]);
+
+  // Debounced fetch functions
+  const debouncedFetchPullRequests = useDebounce(fetchPullRequests, 3000);
+  const debouncedFetchLeaderboard = useDebounce(fetchLeaderboard, 3000);
+
+  // Fetch projects on mount
+  useEffect(() => {
+    if (memoizedUser && !hasFetchedProjects.current) {
+      fetchProjects();
+    }
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
     };
+  }, [memoizedUser, fetchProjects]);
 
-    fetchPullRequests();
-    const interval = setInterval(fetchPullRequests, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
+  // Fetch pull requests and leaderboard when selectedProject changes
+  useEffect(() => {
+    if (selectedProject && projects.includes(selectedProject)) {
+      debouncedFetchPullRequests();
+      debouncedFetchLeaderboard();
+    }
+  }, [selectedProject, projects, debouncedFetchPullRequests, debouncedFetchLeaderboard]);
 
-  const userPullRequests = pullRequests.filter((pr) => {
-    const name = user?.githubUsername?.toLowerCase() || user?.username?.toLowerCase();
-    const dName = pr.developer?.toLowerCase() || "";
-    const projectMatch = !selectedProject || pr.projectName === selectedProject;
-    const matches = dName === name && projectMatch;
-    console.log(`Filtering PR ${pr.pullRequestId} (${pr.projectName}): developer=${dName}, projectMatch=${projectMatch}, matches=${matches}`);
-    return matches;
-  });
+  const handleLogout = () => {
+    localStorage.removeItem('selectedProject');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
 
-  const pullRequestCount = userPullRequests.length;
-  const pullRequestStatuses = userPullRequests.reduce((acc, pr) => {
-    acc[pr.status] = (acc[pr.status] || 0) + 1;
-    return acc;
-  }, { pending: 0, approved: 0, rejected: 0 });
+  const handleRefresh = () => {
+    if (selectedProject && projects.includes(selectedProject)) {
+      lastFetchedProject.current = null; // Allow re-fetch on manual refresh
+      debouncedFetchPullRequests();
+      debouncedFetchLeaderboard();
+    }
+  };
 
   const fmt = (t) => new Date(t).toLocaleString();
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6 font-sans">
-      <header className="bg-white shadow p-4 rounded mb-6 flex justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Developer Dashboard</h1>
-          <p className="text-gray-600">Logged in as: {user?.username || "..."}</p>
-        </div>
-        <button
-          onClick={() => {
-            localStorage.clear();
-            window.location.href = "/login";
-          }}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          Logout
-        </button>
-      </header>
-
-      <main className="bg-white p-6 rounded shadow">
-        <section className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Pull Request Overview</h2>
-          <p className="text-gray-700">Total Pull Requests: {pullRequestCount}</p>
-          <div className="mt-2">
-            <p className="text-gray-700">Status Breakdown:</p>
-            <ul className="list-disc pl-5 text-gray-600">
-              <li>Pending: {pullRequestStatuses.pending}</li>
-              <li>Approved: {pullRequestStatuses.approved}</li>
-              <li>Rejected: {pullRequestStatuses.rejected}</li>
-            </ul>
-          </div>
-        </section>
-
-        <h2 className="text-xl font-semibold mb-4">Your Pull Requests</h2>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Developer Dashboard</h1>
+      {memoizedUser && (
         <div className="mb-4">
-          <label htmlFor="project-select" className="mr-2">Filter by Project:</label>
-          <select
-            id="project-select"
-            value={selectedProject}
-            onChange={(e) => setSelectedProject(e.target.value)}
-            className="p-2 border rounded"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project} value={project}>
-                {project}
-              </option>
-            ))}
-          </select>
+          <p className="text-lg font-semibold">Logged in as: {memoizedUser.username}</p>
+          <p className="text-gray-600">Points: {memoizedUser.points?.[selectedProject] || 0} ({selectedProject || 'No project selected'})</p>
         </div>
-        {userPullRequests.map((pr) => (
-          <div key={`${pr.pullRequestId}-${pr.projectName}`} className="border p-4 rounded mb-4 bg-gray-50 hover:shadow transition">
+      )}
+      <button onClick={handleLogout} className="mb-4 px-4 py-2 bg-red-500 text-white rounded">
+        Logout
+      </button>
+
+      <div className="mb-4">
+        <select
+          value={selectedProject}
+          onChange={(e) => setSelectedProject(e.target.value)}
+          className="border p-2 rounded mr-2"
+        >
+          <option value="">Select Project</option>
+          {projects.map((project) => (
+            <option key={project} value={project}>
+              {project}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-blue-500 text-white rounded"
+          disabled={!selectedProject}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {loading && <p>Loading...</p>}
+      {error && <p className="text-red-500">{error}</p>}
+      {!loading && !selectedProject && <p className="text-red-500">Please select a project</p>}
+      {!loading && pullRequests.length === 0 && selectedProject && <p>No pull requests found</p>}
+
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Leaderboard ({selectedProject || 'Select a project'})</h2>
+        {leaderboard.length > 0 ? (
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-300 p-3 text-left">Rank</th>
+                <th className="border border-gray-300 p-3 text-left">Username</th>
+                <th className="border border-gray-300 p-3 text-left">GitHub</th>
+                <th className="border border-gray-300 p-3 text-left">Points</th>
+                <th className="border border-gray-300 p-3 text-left">Project</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((dev, index) => (
+                <tr key={dev._id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                  <td className="border border-gray-300 p-3">{index + 1}</td>
+                  <td className="border border-gray-300 p-3">{dev.username}</td>
+                  <td className="border border-gray-300 p-3">{dev.githubUsername}</td>
+                  <td className="border border-gray-300 p-3">{dev.points || 0}</td>
+                  <td className="border border-gray-300 p-3">{selectedProject}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-gray-500">No developers found for this project.</p>
+        )}
+      </div>
+
+      <ul className="space-y-4">
+        {pullRequests.map((pr) => (
+          <li key={`${pr.pullRequestId}-${pr.projectName}`} className="border p-4 rounded">
             <div className="flex justify-between mb-2">
               <strong>PR #{pr.pullRequestId}</strong>
-              <span className={`text-sm ${pr.status === "approved" ? "text-green-600" : pr.status === "rejected" ? "text-red-600" : "text-yellow-600"}`}>
+              <span
+                className={`text-sm font-medium ${
+                  pr.status === 'approved' ? 'text-green-600' :
+                  pr.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'
+                }`}
+              >
                 Status: {pr.status}
               </span>
             </div>
-            <p className="text-sm text-gray-700">
-              Project: {pr.projectName} • {fmt(pr.timestamp)}
-            </p>
-          </div>
+            <p><strong>Project:</strong> {pr.projectName}</p>
+            <p><strong>Version:</strong> {pr.version}</p>
+            <p><strong>Timestamp:</strong> {fmt(pr.timestamp)}</p>
+            <p><strong>Changed Files:</strong></p>
+            <ul className="list-disc pl-5">
+              {pr.changedFiles.map((file, index) => (
+                <li key={index}>
+                  <strong>{file.filename}</strong>
+                  <pre>{file.content}</pre>
+                  <p><strong>Vulnerability Status:</strong> {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}</p>
+                  {file.vulnerability.is_vulnerable && (
+                    <div>
+                      <p><strong>Vulnerability Details:</strong></p>
+                      <ul className="list-disc pl-5">
+                        {Array.isArray(file.vulnerability.details) ? (
+                          file.vulnerability.details.map((vuln, idx) => (
+                            <li key={idx}>
+                              <strong>{vuln.type}</strong> at line {vuln.line}: <pre>{vuln.snippet}</pre>
+                            </li>
+                          ))
+                        ) : (
+                          <li>{file.vulnerability.details}</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
         ))}
-
-        {userPullRequests.length === 0 && (
-          <p className="text-gray-500 text-center py-8">No pull requests found.</p>
-        )}
-        <p className="mt-6 text-sm">{status}</p>
-      </main>
+      </ul>
     </div>
   );
-}
+};
 
 export default DeveloperDashboard;

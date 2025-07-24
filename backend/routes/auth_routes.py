@@ -13,7 +13,8 @@ def serialize_user(doc, mask=True):
         'username': doc['username'],
         'email': doc['email'],
         'role': doc['role'],
-        'githubUsername': doc.get('githubUsername', '')
+        'githubUsername': doc.get('githubUsername', ''),
+        'points': doc.get('points', {}) if doc['role'] == 'developer' else None  # Use object for points
     }
     token = doc.get('githubToken', '')
     if mask and len(token) >= 8:
@@ -45,8 +46,11 @@ def signup():
         user['createdProjects'] = data.get('createdProjects', [])
     else:
         user['assignedProjects'] = data.get('assignedProjects', [])
+        if data['role'] == 'developer':
+            user['points'] = {}  # Initialize points as an empty object for developers
     res = users_col.insert_one(user)
     user['_id'] = res.inserted_id
+    print(f"Registered user: {user['username']}")
     return jsonify({'user': serialize_user(user, mask=False)}), 201
 
 @auth_bp.route('/login', methods=['POST'])
@@ -60,5 +64,62 @@ def login():
     if not user:
         return jsonify({'error': 'User not found'}), 404
     if not bcrypt.checkpw(pw.encode(), user['password']):
+        print(f"Login failed for identifier: {identifier}")
         return jsonify({'error': 'Invalid credentials'}), 401
+    print(f"Login successful for user: {user['username']}")
     return jsonify({'user': serialize_user(user, mask=False)}), 200
+
+@auth_bp.route('/users/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    data = request.get_json() or {}
+    points = data.get('points')
+    project_name = data.get('projectName')
+    
+    if points is None or not isinstance(points, int):
+        print(f"Invalid points value: {points}")
+        return jsonify({'error': 'Invalid or missing points value'}), 400
+    if not project_name or not isinstance(project_name, str) or not project_name.strip():
+        print(f"Invalid projectName: {project_name}")
+        return jsonify({'error': 'Invalid or missing project name'}), 400
+
+    try:
+        if not ObjectId.is_valid(user_id):
+            print(f"Invalid user_id: {user_id}")
+            return jsonify({'error': 'Invalid user ID format'}), 400
+
+        user = users_col.find_one({'_id': ObjectId(user_id), 'role': 'developer'})
+        if not user:
+            print(f"No developer found for ID: {user_id}")
+            return jsonify({'error': 'Developer not found'}), 404
+        if isinstance(user.get('points'), list):
+            print(f"Invalid points field type for user {user_id}: expected object, got array")
+            return jsonify({'error': 'User points field must be an object, not an array'}), 400
+
+        result = users_col.update_one(
+            {'_id': ObjectId(user_id), 'role': 'developer'},
+            {'$set': {f'points.{project_name}': points}}
+        )
+        if result.matched_count == 0:
+            print(f"No developer found for ID: {user_id}")
+            return jsonify({'error': 'Developer not found'}), 404
+        print(f"Updated points for user {user_id}, project {project_name}: {points}")
+        return jsonify({'message': f'Points updated for {project_name}', 'points': points}), 200
+    except Exception as e:
+        print(f"Failed to update user points for user {user_id}, project {project_name}: {str(e)}")
+        return jsonify({'error': f'Failed to update user points: {str(e)}'}), 500
+
+@auth_bp.route('/users/<user_id>', methods=['GET'])
+def get_user(user_id):
+    try:
+        if not ObjectId.is_valid(user_id):
+            print(f"Invalid user_id: {user_id}")
+            return jsonify({'error': 'Invalid user ID format'}), 400
+        user = users_col.find_one({'_id': ObjectId(user_id)})
+        if not user:
+            print(f"No user found for ID: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        print(f"Retrieved user: {user['username']}")
+        return jsonify({'user': serialize_user(user, mask=False)}), 200
+    except Exception as e:
+        print(f"Failed to retrieve user {user_id}: {str(e)}")
+        return jsonify({'error': str(e)}), 500

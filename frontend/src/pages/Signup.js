@@ -17,7 +17,7 @@ function Signup() {
     confirmPassword: '',
     role: '',
     githubUsername: '',
-    githubToken: ''          // NEW FIELD
+    githubToken: ''
   });
 
   /* ------------------------------------------------------------------
@@ -91,10 +91,13 @@ function Signup() {
       };
 
       /* ------------------------------------------------------------
-         4) Role‑specific initial project arrays
+         4) Role‑specific initial project arrays and points
       ------------------------------------------------------------ */
       if (role === 'admin') {
         requestBody.createdProjects = [];
+      } else if (role === 'developer') {
+        requestBody.assignedProjects = [];
+        requestBody.points = []; // Initialize points as an array for developers
       } else {
         requestBody.assignedProjects = [];
       }
@@ -215,7 +218,7 @@ function Signup() {
           />
         </div>
 
-        {/* GitHub Token – NEW FIELD */}
+        {/* GitHub Token */}
         <div style={{ marginBottom: '15px' }}>
           <input
             type="text"
