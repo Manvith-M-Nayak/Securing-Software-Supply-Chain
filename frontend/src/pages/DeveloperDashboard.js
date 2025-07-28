@@ -37,7 +37,6 @@ const DeveloperDashboard = () => {
   const memoizedUser = useMemo(() => user, [user]);
 
   // Load user from localStorage
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     try {
       const u = JSON.parse(localStorage.getItem('user'));
@@ -225,123 +224,320 @@ const DeveloperDashboard = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Developer Dashboard</h1>
-      {memoizedUser && (
-        <div className="mb-4">
-          <p className="text-lg font-semibold">Logged in as: {memoizedUser.username}</p>
-          <p className="text-gray-600">Points: {memoizedUser.points?.[selectedProject] || 0} ({selectedProject || 'No project selected'})</p>
+    <>
+      <div className="container">
+        <div className="header">
+          <h1>Developer Dashboard</h1>
+          <button onClick={handleLogout} className="logout-btn">Logout</button>
         </div>
-      )}
-      <button onClick={handleLogout} className="mb-4 px-4 py-2 bg-red-500 text-white rounded">
-        Logout
-      </button>
-
-      <div className="mb-4">
-        <select
-          value={selectedProject}
-          onChange={(e) => setSelectedProject(e.target.value)}
-          className="border p-2 rounded mr-2"
-        >
-          <option value="">Select Project</option>
-          {projects.map((project) => (
-            <option key={project} value={project}>
-              {project}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={handleRefresh}
-          className="px-4 py-2 bg-blue-500 text-white rounded"
-          disabled={!selectedProject}
-        >
-          Refresh
-        </button>
-      </div>
-
-      {loading && <p>Loading...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-      {!loading && !selectedProject && <p className="text-red-500">Please select a project</p>}
-      {!loading && pullRequests.length === 0 && selectedProject && <p>No pull requests found</p>}
-
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Leaderboard ({selectedProject || 'Select a project'})</h2>
-        {leaderboard.length > 0 ? (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 p-3 text-left">Rank</th>
-                <th className="border border-gray-300 p-3 text-left">Username</th>
-                <th className="border border-gray-300 p-3 text-left">GitHub</th>
-                <th className="border border-gray-300 p-3 text-left">Points</th>
-                <th className="border border-gray-300 p-3 text-left">Project</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map((dev, index) => (
-                <tr key={dev._id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                  <td className="border border-gray-300 p-3">{index + 1}</td>
-                  <td className="border border-gray-300 p-3">{dev.username}</td>
-                  <td className="border border-gray-300 p-3">{dev.githubUsername}</td>
-                  <td className="border border-gray-300 p-3">{dev.points || 0}</td>
-                  <td className="border border-gray-300 p-3">{selectedProject}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-gray-500">No developers found for this project.</p>
+        {memoizedUser && (
+          <div className="user-info">
+            <p>Logged in as: {memoizedUser.username}</p>
+            <p className="points">Points: {memoizedUser.points?.[selectedProject] || 0} ({selectedProject || 'No project selected'})</p>
+          </div>
         )}
-      </div>
+        <div className="actions">
+          <select
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+          >
+            <option value="">Select Project</option>
+            {projects.map((project) => (
+              <option key={project} value={project}>
+                {project}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleRefresh}
+            disabled={!selectedProject}
+          >
+            Refresh
+          </button>
+        </div>
 
-      <ul className="space-y-4">
-        {pullRequests.map((pr) => (
-          <li key={`${pr.pullRequestId}-${pr.projectName}`} className="border p-4 rounded">
-            <div className="flex justify-between mb-2">
-              <strong>PR #{pr.pullRequestId}</strong>
-              <span
-                className={`text-sm font-medium ${
-                  pr.status === 'approved' ? 'text-green-600' :
-                  pr.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'
-                }`}
-              >
-                Status: {pr.status}
-              </span>
-            </div>
-            <p><strong>Project:</strong> {pr.projectName}</p>
-            <p><strong>Version:</strong> {pr.version}</p>
-            <p><strong>Timestamp:</strong> {fmt(pr.timestamp)}</p>
-            <p><strong>Transaction Hash:</strong> <span title={pr.txHash}>{truncateHash(pr.txHash)}</span></p>
-            <p><strong>Changed Files:</strong></p>
-            <ul className="list-disc pl-5">
-              {pr.changedFiles.map((file, index) => (
-                <li key={index}>
-                  <strong>{file.filename}</strong>
-                  <pre>{file.content}</pre>
-                  <p><strong>Vulnerability Status:</strong> {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}</p>
-                  {file.vulnerability.is_vulnerable && (
-                    <div>
-                      <p><strong>Vulnerability Details:</strong></p>
-                      <ul className="list-disc pl-5">
-                        {Array.isArray(file.vulnerability.details) ? (
-                          file.vulnerability.details.map((vuln, idx) => (
-                            <li key={idx}>
-                              <strong>{vuln.type}</strong> at line {vuln.line}: <pre>{vuln.snippet}</pre>
-                            </li>
-                          ))
-                        ) : (
-                          <li>{file.vulnerability.details}</li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
-    </div>
+        {loading && <p className="loading">Loading...</p>}
+        {error && <p className="error">{error}</p>}
+        {!loading && !selectedProject && <p className="error">Please select a project</p>}
+        {!loading && pullRequests.length === 0 && selectedProject && <p className="error">No pull requests found</p>}
+
+        <div className="table-container">
+          <h2>Leaderboard ({selectedProject || 'Select a project'})</h2>
+          {leaderboard.length > 0 ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Username</th>
+                  <th>GitHub</th>
+                  <th>Points</th>
+                  <th>Project</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboard.map((dev, index) => (
+                  <tr key={dev._id}>
+                    <td>{index + 1}</td>
+                    <td>{dev.username}</td>
+                    <td>{dev.githubUsername}</td>
+                    <td>{dev.points || 0}</td>
+                    <td>{selectedProject}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No developers found for this project.</p>
+          )}
+        </div>
+
+        <ul className="pr-list">
+          {pullRequests.map((pr) => (
+            <li key={`${pr.pullRequestId}-${pr.projectName}`} className="pr-item">
+              <div className="pr-header">
+                <strong>PR #{pr.pullRequestId}</strong>
+                <span
+                  className={`pr-status-${
+                    pr.status === 'approved' ? 'approved' :
+                    pr.status === 'rejected' ? 'rejected' : 'pending'
+                  }`}
+                >
+                  Status: {pr.status}
+                </span>
+              </div>
+              <div className="pr-details">
+                <p><strong>Project:</strong> {pr.projectName}</p>
+                <p><strong>Version:</strong> {pr.version}</p>
+                <p><strong>Timestamp:</strong> {fmt(pr.timestamp)}</p>
+                <p><strong>Transaction Hash:</strong> <span title={pr.txHash}>{truncateHash(pr.txHash)}</span></p>
+                <p><strong>Changed Files:</strong></p>
+                <ul className="file-list">
+                  {pr.changedFiles.map((file, index) => (
+                    <li key={index} className="file-item">
+                      <strong>{file.filename}</strong>
+                      <pre>{file.content}</pre>
+                      <p><strong>Vulnerability Status:</strong> {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}</p>
+                      {file.vulnerability.is_vulnerable && (
+                        <div className="vuln-details">
+                          <p><strong>Vulnerability Details:</strong></p>
+                          <ul className="vuln-list">
+                            {Array.isArray(file.vulnerability.details) ? (
+                              file.vulnerability.details.map((vuln, idx) => (
+                                <li key={idx}>
+                                  <strong>{vuln.type}</strong> at line {vuln.line}: <pre>{vuln.snippet}</pre>
+                                </li>
+                              ))
+                            ) : (
+                              <li>{file.vulnerability.details}</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <style jsx>{`
+        .container {
+          font-family: 'Arial', sans-serif;
+          background-color: #f4f6f9;
+          margin: 0 auto;
+          padding: 20px;
+          max-width: 1200px;
+          color: #333;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+        }
+        h1 {
+          font-size: 2rem;
+          color: #1e3a8a;
+          margin: 0;
+        }
+        .logout-btn {
+          padding: 0.75rem 1.5rem;
+          background-color: #ef4444;
+          color: #fff;
+          border: none;
+          border-radius: 5px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+          background-color: #b91c1c;
+        }
+        .user-info {
+          background-color: #fff;
+          padding: 1rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          margin-bottom: 1.5rem;
+        }
+        .user-info p {
+          margin: 0.5rem 0;
+          font-size: 1.1rem;
+        }
+        .user-info .points {
+          color: #4b5563;
+          font-size: 1rem;
+        }
+        .actions {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+          align-items: center;
+        }
+        select, button {
+          padding: 0.75rem;
+          border-radius: 5px;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+        select {
+          border: 1px solid #d1d5db;
+          background-color: #fff;
+          flex: 1;
+        }
+        select:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        button {
+          background-color: #3b82f6;
+          color: #fff;
+          border: none;
+          transition: background-color 0.2s;
+        }
+        button:hover {
+          background-color: #1e3a8a;
+        }
+        button:disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
+        }
+        .error {
+          color: #ef4444;
+          font-size: 1rem;
+          margin-bottom: 1rem;
+          text-align: center;
+        }
+        .loading {
+          color: #4b5563;
+          text-align: center;
+          font-size: 1rem;
+        }
+        .table-container {
+          background-color: #fff;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          overflow-x: auto;
+          margin-bottom: 2rem;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          padding: 0.75rem;
+          text-align: left;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+          background-color: #f9fafb;
+          font-weight: 600;
+          color: #1e3a8a;
+        }
+        tr:nth-child(even) {
+          background-color: #f9fafb;
+        }
+        .pr-list {
+          list-style: none;
+          padding: 0;
+        }
+        .pr-item {
+          background-color: #fff;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .pr-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.75rem;
+        }
+        .pr-status-approved {
+          color: #10b981;
+          font-weight: 500;
+        }
+        .pr-status-rejected {
+          color: #ef4444;
+          font-weight: 500;
+        }
+        .pr-status-pending {
+          color: #f59e0b;
+          font-weight: 500;
+        }
+        .pr-details p {
+          margin: 0.5rem 0;
+        }
+        .file-list {
+          list-style: disc;
+          padding-left: 1.5rem;
+          margin-top: 0.5rem;
+        }
+        .file-item pre {
+          background-color: #f9fafb;
+          padding: 0.75rem;
+          border-radius: 5px;
+          overflow-x: auto;
+          font-size: 0.9rem;
+        }
+        .vuln-details {
+          margin-top: 0.5rem;
+        }
+        .vuln-list {
+          list-style: disc;
+          padding-left: 1.5rem;
+        }
+        @media (max-width: 768px) {
+          .container {
+            padding: 10px;
+          }
+          h1 {
+            font-size: 1.5rem;
+          }
+          .header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+          }
+          .logout-btn {
+            align-self: flex-end;
+          }
+          h2 {
+            font-size: 1.25rem;
+          }
+          .actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          select, button {
+            width: 100%;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 

@@ -189,35 +189,155 @@ function AdminCreateProject() {
   };
 
   if (!userData) {
-    return <div style={{ padding: 20 }}>Loading user data...</div>;
+    return (
+      <div className="loading-container">
+        <p>Loading user data...</p>
+        <style jsx>{`
+          .loading-container {
+            font-family: 'Arial', sans-serif;
+            padding: 20px;
+            text-align: center;
+            color: #4b5563;
+            font-size: 1rem;
+          }
+        `}</style>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Create New Project</h2>
-      <input
-        style={{ width: '100%', padding: 10, marginBottom: 15, border: '1px solid #ccc', borderRadius: 4 }}
-        disabled={isCreating}
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder="Project name (letters, numbers, _, - only)"
-      />
-      <button
-        disabled={isCreating || !name.trim()}
-        onClick={handleCreate}
-        style={{
-          padding: '10px 20px',
-          background: isCreating ? '#ccc' : '#007bff',
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: isCreating || !name.trim() ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {isCreating ? 'Creating...' : 'Create Project & Repo'}
-      </button>
-      {status && <div style={{ marginTop: 20, color: status.includes('Error') ? 'red' : 'green' }}>{status}</div>}
-    </div>
+    <>
+      <div className="container">
+        <div className="header">
+          <h1>Create New Project</h1>
+        </div>
+        <div className="form-container">
+          <input
+            disabled={isCreating}
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Project name (letters, numbers, _, - only)"
+          />
+          <button
+            disabled={isCreating || !name.trim()}
+            onClick={handleCreate}
+          >
+            {isCreating ? 'Creating...' : 'Create Project & Repo'}
+          </button>
+        </div>
+        {status && (
+          <p className={status.includes('Error') ? 'error' : 'success'}>
+            {status}
+          </p>
+        )}
+      </div>
+      <style jsx>{`
+        .container {
+          font-family: 'Arial', sans-serif;
+          background-color: #f4f6f9;
+          margin: 0 auto;
+          padding: 20px;
+          max-width: 800px;
+          color: #333;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+        }
+        h1 {
+          font-size: 1.875rem;
+          color: #1e3a8a;
+          margin: 0;
+        }
+        .logout-btn {
+          padding: 0.75rem 1.5rem;
+          background-color: #ef4444;
+          color: #fff;
+          border: none;
+          border-radius: 5px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+          background-color: #b91c1c;
+        }
+        .form-container {
+          background-color: #fff;
+          padding: 1.5rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          margin-bottom: 1.5rem;
+        }
+        input {
+          width: 100%;
+          padding: 0.75rem;
+          border: 1px solid #d1d5db;
+          border-radius: 5px;
+          font-size: 1rem;
+          margin-bottom: 1rem;
+        }
+        input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        input:disabled {
+          background-color: #e5e7eb;
+          cursor: not-allowed;
+        }
+        button {
+          padding: 0.75rem 1.5rem;
+          background-color: #3b82f6;
+          color: #fff;
+          border: none;
+          border-radius: 5px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        button:hover {
+          background-color: #1e3a8a;
+        }
+        button:disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
+        }
+        .error {
+          color: #ef4444;
+          font-size: 1rem;
+          margin-top: 1rem;
+          text-align: center;
+        }
+        .success {
+          color: #10b981;
+          font-size: 1rem;
+          margin-top: 1rem;
+          text-align: center;
+        }
+        @media (max-width: 768px) {
+          .container {
+            padding: 10px;
+          }
+          h1 {
+            font-size: 1.5rem;
+          }
+          .header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+          }
+          .logout-btn {
+            align-self: flex-end;
+          }
+          .form-container {
+            padding: 1rem;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 

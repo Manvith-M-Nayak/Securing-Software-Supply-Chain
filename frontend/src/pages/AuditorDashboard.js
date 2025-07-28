@@ -67,23 +67,17 @@ const AuditorDashboard = ({ user, onLogout }) => {
   const canViewProject = assignedProjects.some(p => p.projectName === projectName);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Auditor Dashboard</h1>
-          <button 
-            onClick={onLogout} 
-            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
-          >
-            Logout
-          </button>
+    <>
+      <div className="container">
+        <div className="header">
+          <h1>Auditor Dashboard</h1>
+          <button onClick={onLogout} className="logout-btn">Logout</button>
         </div>
-        
-        <div className="mb-8 flex gap-4">
+
+        <div className="actions">
           <select
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
-            className="flex-1 p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select Project</option>
             {assignedProjects.map(p => (
@@ -94,81 +88,72 @@ const AuditorDashboard = ({ user, onLogout }) => {
           </select>
           <button
             onClick={fetchPullRequests}
-            className={`px-6 py-3 rounded-lg text-white font-medium ${
-              !canViewProject || !projectName 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700'
-            } transition-colors duration-200`}
             disabled={!canViewProject || !projectName}
+            className={!canViewProject || !projectName ? 'btn-disabled' : ''}
           >
             Refresh
           </button>
         </div>
 
         {loading && (
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            <p className="mt-2 text-gray-600">Loading...</p>
+          <div className="loading">
+            <div className="spinner"></div>
+            <p>Loading...</p>
           </div>
         )}
-        
+
         {error && (
-          <p className="p-4 bg-red-100 text-red-700 rounded-lg mb-6">{error}</p>
-        )}
-        
-        {!loading && !canViewProject && projectName && (
-          <p className="p-4 bg-red-100 text-red-700 rounded-lg mb-6">Unauthorized project</p>
-        )}
-        
-        {!loading && pullRequests.length === 0 && projectName && (
-          <p className="p-4 bg-blue-100 text-blue-700 rounded-lg mb-6">No pending pull requests</p>
+          <p className="error">{error}</p>
         )}
 
-        <div className="space-y-6">
+        {!loading && !canViewProject && projectName && (
+          <p className="error">Unauthorized project</p>
+        )}
+
+        {!loading && pullRequests.length === 0 && projectName && (
+          <p className="info">No pending pull requests</p>
+        )}
+
+        <div className="pr-list">
           {pullRequests.map((pr) => (
-            <div 
-              key={pr.pullRequestId} 
-              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div key={pr.pullRequestId} className="pr-item">
+              <div className="pr-grid">
                 <div>
-                  <p className="text-gray-600"><strong className="text-gray-800">PR ID:</strong> {pr.pullRequestId}</p>
-                  <p className="text-gray-600"><strong className="text-gray-800">Project:</strong> {pr.projectName}</p>
-                  <p className="text-gray-600"><strong className="text-gray-800">Version:</strong> {pr.version}</p>
+                  <p><strong>PR ID:</strong> {pr.pullRequestId}</p>
+                  <p><strong>Project:</strong> {pr.projectName}</p>
+                  <p><strong>Version:</strong> {pr.version}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600"><strong className="text-gray-800">Developer:</strong> {pr.developer}</p>
-                  <p className="text-gray-600"><strong className="text-gray-800">Timestamp:</strong> {new Date(pr.timestamp).toLocaleString()}</p>
+                  <p><strong>Developer:</strong> {pr.developer}</p>
+                  <p><strong>Timestamp:</strong> {new Date(pr.timestamp).toLocaleString()}</p>
                 </div>
               </div>
 
-              <p className="text-gray-800 font-medium mb-2">Changed Files:</p>
-              <div className="space-y-4">
+              <p className="file-title">Changed Files:</p>
+              <div className="file-container">
                 {pr.changedFiles.map((file, index) => (
-                  <div key={index} className="border-l-4 border-gray-200 pl-4">
-                    <p className="text-gray-800 font-medium">{file.filename}</p>
-                    <pre className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 overflow-x-auto">
-                      {file.content}
-                    </pre>
-                    <p className="mt-2">
-                      <strong className="text-gray-800">Vulnerability Status:</strong>{' '}
-                      <span className={file.vulnerability.is_vulnerable ? 'text-red-600' : 'text-green-600'}>
+                  <div key={index} className="file-item">
+                    <p className="filename">{file.filename}</p>
+                    <pre>{file.content}</pre>
+                    <p>
+                      <strong>Vulnerability Status:</strong>{' '}
+                      <span className={file.vulnerability.is_vulnerable ? 'text-red' : 'text-green'}>
                         {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}
                       </span>
                     </p>
                     {file.vulnerability.is_vulnerable && (
-                      <div className="mt-2">
-                        <p className="text-gray-800 font-medium">Vulnerability Details:</p>
-                        <ul className="list-disc pl-6 mt-2 space-y-2">
+                      <div className="vuln-details">
+                        <p>Vulnerability Details:</p>
+                        <ul className="vuln-list">
                           {Array.isArray(file.vulnerability.details) ? (
                             file.vulnerability.details.map((vuln, idx) => (
-                              <li key={idx} className="text-gray-600">
-                                <strong className="text-gray-800">{vuln.type}</strong> at line {vuln.line}:{' '}
-                                <pre className="inline-block bg-gray-50 p-2 rounded text-sm">{vuln.snippet}</pre>
+                              <li key={idx}>
+                                <strong>{vuln.type}</strong> at line {vuln.line}:{' '}
+                                <pre className="vuln-snippet">{vuln.snippet}</pre>
                               </li>
                             ))
                           ) : (
-                            <li className="text-gray-600">{file.vulnerability.details}</li>
+                            <li>{file.vulnerability.details}</li>
                           )}
                         </ul>
                       </div>
@@ -177,16 +162,16 @@ const AuditorDashboard = ({ user, onLogout }) => {
                 ))}
               </div>
 
-              <div className="mt-6 flex gap-4">
+              <div className="decision-buttons">
                 <button
                   onClick={() => handleDecision(pr.pullRequestId, 'approve')}
-                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                  className="approve-btn"
                 >
                   Approve
                 </button>
                 <button
                   onClick={() => handleDecision(pr.pullRequestId, 'reject')}
-                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
+                  className="reject-btn"
                 >
                   Reject
                 </button>
@@ -195,7 +180,260 @@ const AuditorDashboard = ({ user, onLogout }) => {
           ))}
         </div>
       </div>
-    </div>
+      <style jsx>{`
+        .container {
+          font-family: 'Arial', sans-serif;
+          background-color: #f4f6f9;
+          min-height: 100vh;
+          padding: 24px;
+          margin: 0 auto;
+          max-width: 1280px;
+          color: #333;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 32px;
+        }
+        h1 {
+          font-size: 1.875rem;
+          font-weight: bold;
+          color: #1e3a8a;
+        }
+        .logout-btn {
+          padding: 8px 24px;
+          background-color: #ef4444;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+          background-color: #b91c1c;
+        }
+        .actions {
+          display: flex;
+          gap: 16px;
+          margin-bottom: 32px;
+          align-items: center;
+        }
+        select {
+          padding: 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          background-color: #fff;
+          font-size: 1rem;
+          flex: 1;
+          cursor: pointer;
+        }
+        select:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        button {
+          padding: 12px 24px;
+          background-color: #3b82f6;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        button:hover {
+          background-color: #1e3a8a;
+        }
+        .btn-disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
+        }
+        .btn-disabled:hover {
+          background-color: #9ca3af;
+        }
+        .loading {
+          text-align: center;
+        }
+        .spinner {
+          display: inline-block;
+          width: 32px;
+          height: 32px;
+          border: 2px solid #3b82f6;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-bottom: 8px;
+        }
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .loading p {
+          color: #4b5563;
+          font-size: 1rem;
+        }
+        .error {
+          background-color: #fee2e2;
+          color: #b91c1c;
+          padding: 16px;
+          border-radius: 6px;
+          margin-bottom: 24px;
+          text-align: center;
+          font-size: 1rem;
+        }
+        .info {
+          background-color: #dbeafe;
+          color: #1e40af;
+          padding: 16px;
+          border-radius: 6px;
+          margin-bottom: 24px;
+          text-align: center;
+          font-size: 1rem;
+        }
+        .pr-list {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+        .pr-item {
+          background-color: #fff;
+          padding: 24px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          transition: box-shadow 0.2s;
+        }
+        .pr-item:hover {
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .pr-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+        @media (min-width: 768px) {
+          .pr-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+        .pr-grid p {
+          color: #4b5563;
+          margin: 4px 0;
+        }
+        .pr-grid p strong {
+          color: #1f2937;
+        }
+        .file-title {
+          font-size: 1.125rem;
+          color: #1f2937;
+          font-weight: 500;
+          margin-bottom: 8px;
+        }
+        .file-container {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .file-item {
+          border-left: 4px solid #e5e7eb;
+          padding-left: 16px;
+        }
+        .filename {
+          font-size: 1rem;
+          font-weight: 500;
+          color: #1f2937;
+          margin-bottom: 8px;
+        }
+        pre {
+          background-color: #f9fafb;
+          padding: 16px;
+          border-radius: 6px;
+          font-size: 0.875rem;
+          color: #374151;
+          overflow-x: auto;
+          white-space: pre-wrap;
+        }
+        .file-item p {
+          margin-top: 8px;
+        }
+        .file-item p strong {
+          color: #1f2937;
+        }
+        .text-red {
+          color: #b91c1c;
+        }
+        .text-green {
+          color: #10b981;
+        }
+        .vuln-details {
+          margin-top: 8px;
+        }
+        .vuln-details p {
+          color: #1f2937;
+          font-weight: 500;
+        }
+        .vuln-list {
+          list-style: disc;
+          padding-left: 24px;
+          margin-top: 8px;
+          color: #4b5563;
+        }
+        .vuln-list li strong {
+          color: #1f2937;
+        }
+        .vuln-snippet {
+          display: inline-block;
+          background-color: #f9fafb;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 0.875rem;
+        }
+        .decision-buttons {
+          display: flex;
+          gap: 16px;
+          margin-top: 24px;
+        }
+        .approve-btn {
+          background-color: #10b981;
+        }
+        .approve-btn:hover {
+          background-color: #059669;
+        }
+        .reject-btn {
+          background-color: #ef4444;
+        }
+        .reject-btn:hover {
+          background-color: #b91c1c;
+        }
+        @media (max-width: 768px) {
+          .container {
+            padding: 16px;
+          }
+          h1 {
+            font-size: 1.5rem;
+          }
+          .header {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+          }
+          .actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          select, button {
+            width: 100%;
+          }
+          .decision-buttons {
+            flex-direction: column;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 

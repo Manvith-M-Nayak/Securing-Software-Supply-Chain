@@ -276,196 +276,319 @@ function AdminRoleManager({ user: parentUser }) {
 
   /* -------------------------------------------------- */
   return (
-    <div
-      style={{ maxWidth: 800, margin: '0 auto 30px', padding: 20, border: '1px solid #ccc', borderRadius: 6 }}
-    >
-      <h3>Assign Role to User</h3>
-
-      {/* Assignment Form */}
-      <div style={{ marginBottom: 30, padding: 15, background: '#f8f9fa', borderRadius: 4 }}>
-        {/* Project dropdown */}
-        <label style={{ display: 'block', marginTop: 10 }}>Project</label>
-        <select
-          value={selectedProject}
-          onChange={e => {
-            const value = e.target.value;
-            if (projects.find(p => p.name === value)) {
-              setSelectedProject(value);
-              console.log('Selected project:', value);
-            } else {
-              setSelectedProject('');
-              setStatus('❌ Invalid project selected.');
-              console.log('Invalid project selection:', value);
-            }
-          }}
-          style={{ width: '100%', padding: 8, marginBottom: 10 }}
-        >
-          <option value="">-- Select Project --</option>
-          {projects.map(p => (
-            <option key={p._id || p.name} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        {/* User dropdown */}
-        <label style={{ display: 'block' }}>User</label>
-        <select
-          value={selectedUser}
-          onChange={e => {
-            const value = e.target.value;
-            if (users.find(u => u._id === value)) {
-              setSelectedUser(value);
-              console.log('Selected user:', value);
-            } else {
-              setSelectedUser('');
-              setStatus('❌ Invalid user selected.');
-              console.log('Invalid user selection:', value);
-            }
-          }}
-          style={{ width: '100%', padding: 8, marginBottom: 10 }}
-        >
-          <option value="">-- Select User --</option>
-          {users.map(u => (
-            <option key={u._id} value={u._id}>
-              {u.username || u.email} ({u.role}
-              {u.role === 'developer' ? `, Points: ${u.points?.[selectedProject] || 0}` : ''}) - {u.githubUsername}
-            </option>
-          ))}
-        </select>
-
-        {/* Role dropdown */}
-        <label style={{ display: 'block' }}>Role</label>
-        <select
-          value={selectedRole}
-          onChange={e => setSelectedRole(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 15 }}
-        >
-          <option value="developer">Developer</option>
-          <option value="auditor">Auditor</option>
-        </select>
-
-        <button
-          onClick={handleAssign}
-          disabled={!selectedProject || !selectedUser}
-          style={{
-            padding: '10px 25px',
-            background: '#007bff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 4,
-            marginRight: 10,
-            opacity: !selectedProject || !selectedUser ? 0.5 : 1,
-            cursor: !selectedProject || !selectedUser ? 'not-allowed' : 'pointer',
-          }}
-        >
-          Assign
-        </button>
-
-        <button
-          onClick={fetchProjectsAndUsers}
-          style={{
-            padding: '10px 25px',
-            background: '#28a745',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 4,
-          }}
-        >
-          Refresh Projects
-        </button>
-      </div>
-
-      {/* Current Assignments Display */}
-      <div>
-        <h4>Current Project Assignments</h4>
-        {projects.length === 0 ? (
-          <p style={{ color: '#666', fontStyle: 'italic' }}>No projects found.</p>
-        ) : (
-          projects.map(project => (
-            <div
-              key={project._id}
-              style={{
-                border: '1px solid #ddd',
-                borderRadius: 4,
-                padding: 15,
-                marginBottom: 15,
-                background: '#fff',
+    <>
+      <div className="container">
+        <h1>Assign Role to User</h1>
+        <div className="form-container">
+          <div className="form-group">
+            <label>Project</label>
+            <select
+              value={selectedProject}
+              onChange={e => {
+                const value = e.target.value;
+                if (projects.find(p => p.name === value)) {
+                  setSelectedProject(value);
+                  console.log('Selected project:', value);
+                } else {
+                  setSelectedProject('');
+                  setStatus('❌ Invalid project selected.');
+                  console.log('Invalid project selection:', value);
+                }
               }}
             >
-              <h5 style={{ margin: '0 0 10px 0', color: '#333' }}>{project.name}</h5>
-              {project.assignedUsers && project.assignedUsers.length > 0 ? (
-                <div>
-                  <strong>Assigned Users:</strong>
-                  <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-                    {project.assignedUsers.map((assignment, index) => (
-                      <li
-                        key={index}
-                        style={{
-                          marginBottom: 8,
-                          padding: '8px 12px',
-                          background: '#f8f9fa',
-                          borderRadius: 3,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <span>
-                          <strong>{assignment.username}</strong> ({assignment.githubUsername}) -
-                          <span
-                            style={{
-                              color: assignment.role === 'developer' ? '#007bff' : '#28a745',
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            {assignment.role}
+              <option value="">-- Select Project --</option>
+              {projects.map(p => (
+                <option key={p._id || p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>User</label>
+            <select
+              value={selectedUser}
+              onChange={e => {
+                const value = e.target.value;
+                if (users.find(u => u._id === value)) {
+                  setSelectedUser(value);
+                  console.log('Selected user:', value);
+                } else {
+                  setSelectedUser('');
+                  setStatus('❌ Invalid user selected.');
+                  console.log('Invalid user selection:', value);
+                }
+              }}
+            >
+              <option value="">-- Select User --</option>
+              {users.map(u => (
+                <option key={u._id} value={u._id}>
+                  {u.username || u.email} ({u.role}
+                  {u.role === 'developer' ? `, Points: ${u.points?.[selectedProject] || 0}` : ''}) - {u.githubUsername}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Role</label>
+            <select
+              value={selectedRole}
+              onChange={e => setSelectedRole(e.target.value)}
+            >
+              <option value="developer">Developer</option>
+              <option value="auditor">Auditor</option>
+            </select>
+          </div>
+          <div className="form-buttons">
+            <button
+              onClick={handleAssign}
+              disabled={!selectedProject || !selectedUser}
+            >
+              Assign
+            </button>
+            <button onClick={fetchProjectsAndUsers}>
+              Refresh Projects
+            </button>
+          </div>
+        </div>
+        <div className="assignments-container">
+          <h2>Current Project Assignments</h2>
+          {projects.length === 0 ? (
+            <p className="info">No projects found.</p>
+          ) : (
+            projects.map(project => (
+              <div key={project._id} className="project-item">
+                <h3>{project.name}</h3>
+                {project.assignedUsers && project.assignedUsers.length > 0 ? (
+                  <div>
+                    <p>Assigned Users:</p>
+                    <ul className="assignment-list">
+                      {project.assignedUsers.map((assignment, index) => (
+                        <li key={index} className="assignment-item">
+                          <span>
+                            <strong>{assignment.username}</strong> ({assignment.githubUsername}) -
+                            <span className={assignment.role === 'developer' ? 'role-developer' : 'role-auditor'}>
+                              {assignment.role}
+                            </span>
+                            {assignment.points !== null && assignment.points !== undefined && (
+                              <span className="assignment-meta">
+                                • Points: {assignment.points || 0}
+                              </span>
+                            )}
+                            {assignment.assignedAt && (
+                              <span className="assignment-meta">
+                                • Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
+                              </span>
+                            )}
                           </span>
-                          {assignment.points !== null && assignment.points !== undefined && (
-                            <span style={{ color: '#666', fontSize: '0.9em' }}>
-                              {' '}
-                              • Points: {assignment.points || 0}
-                            </span>
-                          )}
-                          {assignment.assignedAt && (
-                            <span style={{ color: '#666', fontSize: '0.9em' }}>
-                              {' '}
-                              • Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
-                            </span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => handleRemove(project.name, assignment.userId)}
-                          style={{
-                            padding: '4px 8px',
-                            background: '#dc3545',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 3,
-                            fontSize: '0.8em',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <p style={{ color: '#666', fontStyle: 'italic' }}>No users assigned to this project.</p>
-              )}
-            </div>
-          ))
+                          <button
+                            onClick={() => handleRemove(project.name, assignment.userId)}
+                            className="remove-btn"
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="info">No users assigned to this project.</p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+        {status && (
+          <p className={status.startsWith('✅') || status.startsWith('📩') ? 'success' : 'error'}>
+            {status}
+          </p>
         )}
       </div>
-
-      {status && (
-        <p style={{ marginTop: 12, color: status.startsWith('✅') || status.startsWith('📩') ? 'green' : 'red' }}>
-          {status}
-        </p>
-      )}
-    </div>
+      <style jsx>{`
+        .container {
+          font-family: 'Arial', sans-serif;
+          background-color: #f4f6f9;
+          margin: 0 auto;
+          padding: 20px;
+          max-width: 800px;
+          color: #333;
+        }
+        h1 {
+          font-size: 1.875rem;
+          color: #1e3a8a;
+          margin-bottom: 1.5rem;
+        }
+        h2 {
+          font-size: 1.5rem;
+          color: #1e3a8a;
+          margin-bottom: 1rem;
+        }
+        h3 {
+          font-size: 1.25rem;
+          color: #1f2937;
+          margin: 0 0 0.75rem;
+        }
+        .form-container {
+          background-color: #fff;
+          padding: 1.5rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          margin-bottom: 2rem;
+        }
+        .form-group {
+          margin-bottom: 1rem;
+        }
+        label {
+          display: block;
+          font-size: 1rem;
+          color: #1f2937;
+          margin-bottom: 0.5rem;
+        }
+        select {
+          width: 100%;
+          padding: 0.75rem;
+          border: 1px solid #d1d5db;
+          border-radius: 5px;
+          font-size: 1rem;
+          background-color: #fff;
+          cursor: pointer;
+        }
+        select:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .form-buttons {
+          display: flex;
+          gap: 1rem;
+        }
+        button {
+          padding: 0.75rem 1.5rem;
+          background-color: #3b82f6;
+          color: #fff;
+          border: none;
+          border-radius: 5px;
+          font-size: 1rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        button:hover {
+          background-color: #1e3a8a;
+        }
+        button:disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
+        }
+        .form-buttons button:nth-child(2) {
+          background-color: #10b981;
+        }
+        .form-buttons button:nth-child(2):hover {
+          background-color: #059669;
+        }
+        .assignments-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+        .project-item {
+          background-color: #fff;
+          padding: 1.5rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .assignment-list {
+          list-style: none;
+          padding: 0;
+          margin-top: 0.5rem;
+        }
+        .assignment-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.75rem;
+          background-color: #f9fafb;
+          border-radius: 5px;
+          margin-bottom: 0.5rem;
+        }
+        .assignment-item span {
+          font-size: 0.95rem;
+          color: #1f2937;
+        }
+        .role-developer {
+          color: #3b82f6;
+          font-weight: 500;
+        }
+        .role-auditor {
+          color: #10b981;
+          font-weight: 500;
+        }
+        .assignment-meta {
+          color: #4b5563;
+          font-size: 0.9rem;
+        }
+        .remove-btn {
+          padding: 0.5rem 1rem;
+          background-color: #ef4444;
+          font-size: 0.85rem;
+        }
+        .remove-btn:hover {
+          background-color: #b91c1c;
+        }
+        .info {
+          color: #4b5563;
+          font-style: italic;
+          font-size: 1rem;
+          text-align: center;
+        }
+        .error {
+          color: #ef4444;
+          font-size: 1rem;
+          margin-top: 1rem;
+          text-align: center;
+        }
+        .success {
+          color: #10b981;
+          font-size: 1rem;
+          margin-top: 1rem;
+          text-align: center;
+        }
+        @media (max-width: 768px) {
+          .container {
+            padding: 10px;
+          }
+          h1 {
+            font-size: 1.5rem;
+          }
+          h2 {
+            font-size: 1.25rem;
+          }
+          h3 {
+            font-size: 1.1rem;
+          }
+          .form-container {
+            padding: 1rem;
+          }
+          .form-buttons {
+            flex-direction: column;
+            gap: 0.75rem;
+          }
+          button {
+            width: 100%;
+          }
+          .project-item {
+            padding: 1rem;
+          }
+          .assignment-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+          }
+          .remove-btn {
+            align-self: flex-end;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 

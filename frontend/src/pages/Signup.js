@@ -2,14 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Signup() {
-  /* ------------------------------------------------------------------
-     React Router hook for programmatic navigation
-  ------------------------------------------------------------------ */
   const navigate = useNavigate();
-
-  /* ------------------------------------------------------------------
-     Form state now has seven properties, including githubToken
-  ------------------------------------------------------------------ */
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -19,15 +12,9 @@ function Signup() {
     githubUsername: '',
     githubToken: ''
   });
-
-  /* ------------------------------------------------------------------
-     Loading flag disables inputs and shows a spinner label
-  ------------------------------------------------------------------ */
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  /* ------------------------------------------------------------------
-     Generic change handler – updates only the key that triggered it
-  ------------------------------------------------------------------ */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prevState => ({
@@ -36,12 +23,8 @@ function Signup() {
     }));
   };
 
-  /* ------------------------------------------------------------------
-     Main register handler – validates, builds request, and posts
-  ------------------------------------------------------------------ */
   const handleRegister = async (e) => {
     e.preventDefault();
-
     const {
       username,
       email,
@@ -52,9 +35,6 @@ function Signup() {
       githubToken
     } = formData;
 
-    /* --------------------------------------------------------------
-       1) Field completeness check – note githubToken is required
-    -------------------------------------------------------------- */
     if (
       !username ||
       !email ||
@@ -64,23 +44,18 @@ function Signup() {
       !githubUsername ||
       !githubToken
     ) {
-      alert('Please fill in all fields, including role, GitHub username, and GitHub token');
+      setError('Please fill in all fields, including role, GitHub username, and GitHub token');
       return;
     }
 
-    /* --------------------------------------------------------------
-       2) Password confirmation
-    -------------------------------------------------------------- */
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
 
     setLoading(true);
+    setError('');
     try {
-      /* ------------------------------------------------------------
-         3) Assemble request payload
-      ------------------------------------------------------------ */
       const requestBody = {
         username,
         email,
@@ -90,21 +65,15 @@ function Signup() {
         githubToken
       };
 
-      /* ------------------------------------------------------------
-         4) Role‑specific initial project arrays and points
-      ------------------------------------------------------------ */
       if (role === 'admin') {
         requestBody.createdProjects = [];
       } else if (role === 'developer') {
         requestBody.assignedProjects = [];
-        requestBody.points = []; // Initialize points as an array for developers
+        requestBody.points = [];
       } else {
         requestBody.assignedProjects = [];
       }
 
-      /* ------------------------------------------------------------
-         5) POST to backend
-      ------------------------------------------------------------ */
       const response = await fetch('http://localhost:5001/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,13 +82,9 @@ function Signup() {
 
       const data = await response.json();
 
-      /* ------------------------------------------------------------
-         6) Handle success
-      ------------------------------------------------------------ */
       if (response.ok) {
         const user = data.user;
-        alert('Registration successful! You are now logged in.');
-
+        alert('Registration successful!');
         switch (user.role) {
           case 'admin':
             navigate('/admin');
@@ -133,10 +98,6 @@ function Signup() {
           default:
             navigate('/dashboard');
         }
-
-        /* --------------------------------------------------------
-           7) Reset form
-        -------------------------------------------------------- */
         setFormData({
           username: '',
           email: '',
@@ -151,15 +112,12 @@ function Signup() {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Registration failed: ' + error.message);
+      setError('Registration failed: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  /* ------------------------------------------------------------------
-     Allow Enter key to submit when focus is on <select>
-  ------------------------------------------------------------------ */
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -167,162 +125,200 @@ function Signup() {
     }
   };
 
-  /* ------------------------------------------------------------------
-     Navigate to login page
-  ------------------------------------------------------------------ */
   const goToLogin = () => navigate('/login');
 
-  /* ------------------------------------------------------------------
-     JSX – unchanged layout except for new GitHub token field
-  ------------------------------------------------------------------ */
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
-      <h2>Sign Up</h2>
-      <div>
-        {/* Username */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            placeholder="Username"
-            style={inputStyle}
+    <>
+      <div className="container">
+        <h1>Sign Up</h1>
+        <div className="form-container">
+          <div className="form-group">
+            <input
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              placeholder="Username"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Email"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="text"
+              name="githubUsername"
+              value={formData.githubUsername}
+              onChange={handleChange}
+              placeholder="GitHub Username"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="text"
+              name="githubToken"
+              value={formData.githubToken}
+              onChange={handleChange}
+              placeholder="GitHub Personal Access Token"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Password"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              placeholder="Confirm Password"
+              disabled={loading}
+            />
+          </div>
+          <div className="form-group">
+            <select
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              disabled={loading}
+              onKeyPress={handleKeyPress}
+            >
+              <option value="">Select Role</option>
+              <option value="developer">Developer</option>
+              <option value="auditor">Auditor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={handleRegister}
             disabled={loading}
-          />
-        </div>
-
-        {/* Email */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="Email"
-            style={inputStyle}
-            disabled={loading}
-          />
-        </div>
-
-        {/* GitHub Username */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="text"
-            name="githubUsername"
-            value={formData.githubUsername}
-            onChange={handleChange}
-            placeholder="GitHub Username"
-            style={inputStyle}
-            disabled={loading}
-          />
-        </div>
-
-        {/* GitHub Token */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="text"
-            name="githubToken"
-            value={formData.githubToken}
-            onChange={handleChange}
-            placeholder="GitHub Personal Access Token"
-            style={inputStyle}
-            disabled={loading}
-          />
-        </div>
-
-        {/* Password */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Password"
-            style={inputStyle}
-            disabled={loading}
-          />
-        </div>
-
-        {/* Confirm Password */}
-        <div style={{ marginBottom: '15px' }}>
-          <input
-            type="password"
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            placeholder="Confirm Password"
-            style={inputStyle}
-            disabled={loading}
-          />
-        </div>
-
-        {/* Role selector */}
-        <div style={{ marginBottom: '15px' }}>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            style={inputStyle}
-            disabled={loading}
-            onKeyPress={handleKeyPress}
           >
-            <option value="">Select Role</option>
-            <option value="developer">Developer</option>
-            <option value="auditor">Auditor</option>
-            <option value="admin">Admin</option>
-          </select>
+            {loading ? 'Creating Account...' : 'Sign Up'}
+          </button>
+          <div className="login-link">
+            <p>Already have an account?</p>
+            <button onClick={goToLogin}>Login</button>
+          </div>
         </div>
-
-        {/* Submit button */}
-        <button
-          type="button"
-          onClick={handleRegister}
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '12px',
-            backgroundColor: loading ? '#ccc' : '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            marginBottom: '10px'
-          }}
-        >
-          {loading ? 'Creating Account...' : 'Sign Up'}
-        </button>
+        {error && <p className="error">{error}</p>}
       </div>
-
-      {/* Link to login */}
-      <div style={{ textAlign: 'center', marginTop: '20px' }}>
-        <p>Already have an account?</p>
-        <button
-          onClick={goToLogin}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Login
-        </button>
-      </div>
-    </div>
+      <style jsx>{`
+        .container {
+          font-family: 'Arial', sans-serif;
+          background-color: #f4f6f9;
+          margin: 50px auto;
+          padding: 20px;
+          max-width: 400px;
+          color: #333;
+        }
+        h1 {
+          font-size: 1.5rem;
+          color: #1e3a8a;
+          margin-bottom: 1.25rem;
+          text-align: center;
+        }
+        .form-container {
+          background-color: #fff;
+          padding: 1.25rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+          margin-bottom: 0.875rem;
+          margin-right: 1.45rem;
+        }
+        input, select {
+          width: 100%;
+          padding: 0.625rem;
+          border: 1px solid #d1d5db;
+          border-radius: 5px;
+          font-size: 0.875rem;
+          background-color: #fff;
+        }
+        input:focus, select:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        input:disabled, select:disabled {
+          background-color: #e5e7eb;
+          cursor: not-allowed;
+        }
+        button {
+          width: 100%;
+          padding: 0.625rem;
+          background-color: #10b981;
+          color: #fff;
+          border: none;
+          border-radius: 5px;
+          font-size: 0.875rem;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        button:hover {
+          background-color: #059669;
+        }
+        button:disabled {
+          background-color: #9ca3af;
+          cursor: not-allowed;
+        }
+        .login-link {
+          text-align: center;
+          margin-top: 1.25rem;
+        }
+        .login-link p {
+          margin: 0 0 0.5rem;
+          color: #4b5563;
+          font-size: 0.875rem;
+        }
+        .login-link button {
+          background-color: #3b82f6;
+        }
+        .login-link button:hover {
+          background-color: #1e3a8a;
+        }
+        .error {
+          color: #ef4444;
+          font-size: 0.875rem;
+          margin-top: 0.875rem;
+          text-align: center;
+        }
+        @media (max-width: 768px) {
+          .container {
+            padding: 10px;
+            margin: 20px auto;
+          }
+          h1 {
+            font-size: 1.25rem;
+          }
+          .form-container {
+            padding: 1rem;
+          }
+          input, select, button {
+            font-size: 0.75rem;
+          }
+        }
+      `}</style>
+    </>
   );
 }
-
-/* ------------------------------------------------------------------
-   Reusable inline‐style object for inputs
------------------------------------------------------------------- */
-const inputStyle = {
-  width: '100%',
-  padding: '10px',
-  border: '1px solid #ccc',
-  borderRadius: '4px'
-};
 
 export default Signup;
