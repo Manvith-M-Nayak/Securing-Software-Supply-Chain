@@ -34,9 +34,10 @@ const DeveloperDashboard = () => {
   };
 
   // Memoize user to prevent re-renders
-  const memoizedUser = useMemo(() => user, [user?.id, user?.username, user?.email, user?.githubUsername]);
+  const memoizedUser = useMemo(() => user, [user]);
 
   // Load user from localStorage
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     try {
       const u = JSON.parse(localStorage.getItem('user'));
@@ -64,7 +65,7 @@ const DeveloperDashboard = () => {
         setSelectedProject(projects[0]);
       }
     }
-  }, [projects]);
+  }, [projects, selectedProject]);
 
   // Persist selectedProject to localStorage
   useEffect(() => {
@@ -78,7 +79,7 @@ const DeveloperDashboard = () => {
     if (!memoizedUser?.id || hasFetchedProjects.current) return;
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/user_projects/${memoizedUser.id}`, {
+      const response = await axios.get(`${API_BASE_URL}/dev/user_projects/${memoizedUser.id}`, {
         headers: { 'X-User-Email': memoizedUser.email }
       });
       const projectNames = response.data.projects
@@ -87,6 +88,17 @@ const DeveloperDashboard = () => {
         .filter((v, i, a) => a.indexOf(v) === i);
       setProjects(projectNames);
       hasFetchedProjects.current = true;
+      // Update user data with points
+      const updatedUser = {
+        ...memoizedUser,
+        points: response.data.projects.reduce((acc, p) => {
+          acc[p.projectName || p.name] = response.data.points?.[p.projectName || p.name] || 0;
+          return acc;
+        }, {})
+      };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      console.log('Fetched projects and updated user points:', updatedUser.points);
       if (projectNames.length === 0) {
         setError('No projects assigned to this user.');
       }
@@ -98,48 +110,38 @@ const DeveloperDashboard = () => {
     }
   }, [memoizedUser]);
 
-  // Fetch pull requests and update points
+  // Fetch pull requests
   const fetchPullRequests = useCallback(async () => {
-    if (!memoizedUser || !selectedProject || !projects.includes(selectedProject) || lastFetchedProject.current === selectedProject) return;
+    if (!memoizedUser || !selectedProject || !projects.includes(selectedProject)) {
+      console.log('Skipping fetchPullRequests: missing user or invalid project', {
+        hasUser: !!memoizedUser,
+        selectedProject,
+        isProjectValid: projects.includes(selectedProject)
+      });
+      return;
+    }
     setLoading(true);
+    const url = `${API_BASE_URL}/dev/pullrequests?project=${selectedProject}`;
+    console.log('Fetching pull requests:', { url, email: memoizedUser.email });
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/pullrequests?project=${selectedProject}`, {
+      const response = await axios.get(url, {
         headers: { 'X-User-Email': memoizedUser.email }
       });
       const uniquePullRequests = Array.from(
         new Map(response.data.pullrequests.map(pr => [JSON.stringify([pr.pullRequestId, pr.projectName]), pr])).values()
       );
       setPullRequests(uniquePullRequests);
-      lastFetchedProject.current = selectedProject;
-
-      // Calculate points for selected project
-      const userPulls = uniquePullRequests.filter((pr) => {
-        const name = (memoizedUser?.githubUsername || memoizedUser?.username || "").toLowerCase().trim();
-        const dName = (pr.developer || "").toLowerCase().trim();
-        return dName === name && pr.projectName === selectedProject;
-      });
-      const approvedCount = userPulls.filter(pr => pr.status === "approved").length;
-      const rejectedCount = userPulls.filter(pr => pr.status === "rejected").length;
-      const points = approvedCount - rejectedCount;
-
-      // Update user points in MongoDB
-      try {
-        await axios.put(`${API_BASE_URL}/api/users/${memoizedUser.id}/points`, {
-          projectName: selectedProject,
-          points
-        }, {
-          headers: { 'X-User-Email': memoizedUser.email }
-        });
-        setUser(prev => ({
-          ...prev,
-          points: { ...prev.points, [selectedProject]: points }
-        }));
-      } catch (err) {
-        setError(`Failed to save points to server: ${err.response?.data?.error || err.message}`);
-        console.error('Failed to update user points:', err);
+      // Update user points from response
+      if (response.data.points !== undefined) {
+        const updatedUser = {
+          ...memoizedUser,
+          points: { ...memoizedUser.points, [selectedProject]: response.data.points }
+        };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        console.log(`Updated points for ${selectedProject}: ${response.data.points}`);
       }
-
-      setError(null);
+      console.log(`Fetched ${uniquePullRequests.length} pull requests for project ${selectedProject}`);
     } catch (err) {
       const errorMessage = `Failed to fetch pull requests: ${err.message} (Status: ${err.response?.status || 'N/A'})`;
       setError(errorMessage);
@@ -156,14 +158,18 @@ const DeveloperDashboard = () => {
 
   // Fetch leaderboard
   const fetchLeaderboard = useCallback(async () => {
-    if (!selectedProject || !projects.includes(selectedProject) || lastFetchedProject.current === selectedProject) return;
+    if (!memoizedUser || !selectedProject || !projects.includes(selectedProject)) {
+      console.log('Skipping fetchLeaderboard: missing user or invalid project');
+      return;
+    }
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/admin/leaderboard?project=${selectedProject}`, {
+      const response = await axios.get(`${API_BASE_URL}/dev/leaderboard?project=${selectedProject}`, {
         headers: { 'X-User-Email': memoizedUser.email }
       });
       setLeaderboard(response.data.developers || []);
       setError(null);
+      console.log(`Fetched leaderboard for project ${selectedProject}`);
     } catch (err) {
       setError(`Failed to fetch leaderboard: ${err.response?.data?.error || err.message}`);
       console.error('Leaderboard fetch error:', err);
@@ -173,8 +179,8 @@ const DeveloperDashboard = () => {
   }, [memoizedUser, selectedProject, projects]);
 
   // Debounced fetch functions
-  const debouncedFetchPullRequests = useDebounce(fetchPullRequests, 3000);
-  const debouncedFetchLeaderboard = useDebounce(fetchLeaderboard, 3000);
+  const debouncedFetchPullRequests = useDebounce(fetchPullRequests, 1000);
+  const debouncedFetchLeaderboard = useDebounce(fetchLeaderboard, 1000);
 
   // Fetch projects on mount
   useEffect(() => {
@@ -190,6 +196,7 @@ const DeveloperDashboard = () => {
   // Fetch pull requests and leaderboard when selectedProject changes
   useEffect(() => {
     if (selectedProject && projects.includes(selectedProject)) {
+      console.log(`Selected project changed to: ${selectedProject}, triggering fetch`);
       debouncedFetchPullRequests();
       debouncedFetchLeaderboard();
     }
@@ -210,6 +217,12 @@ const DeveloperDashboard = () => {
   };
 
   const fmt = (t) => new Date(t).toLocaleString();
+
+  // Truncate transaction hash for display
+  const truncateHash = (hash) => {
+    if (!hash || hash === 'N/A' || hash === 'Failed') return hash;
+    return `${hash.slice(0, 5)}...${hash.slice(-5)}`;
+  };
 
   return (
     <div className="container mx-auto p-4">
@@ -298,6 +311,7 @@ const DeveloperDashboard = () => {
             <p><strong>Project:</strong> {pr.projectName}</p>
             <p><strong>Version:</strong> {pr.version}</p>
             <p><strong>Timestamp:</strong> {fmt(pr.timestamp)}</p>
+            <p><strong>Transaction Hash:</strong> <span title={pr.txHash}>{truncateHash(pr.txHash)}</span></p>
             <p><strong>Changed Files:</strong></p>
             <ul className="list-disc pl-5">
               {pr.changedFiles.map((file, index) => (

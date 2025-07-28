@@ -67,87 +67,134 @@ const AuditorDashboard = ({ user, onLogout }) => {
   const canViewProject = assignedProjects.some(p => p.projectName === projectName);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Auditor Dashboard</h1>
-      <button onClick={onLogout} className="mb-4 px-4 py-2 bg-red-500 text-white rounded">
-        Logout
-      </button>
-      <div className="mb-4">
-        <select
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-          className="border p-2 rounded mr-2"
-        >
-          <option value="">Select Project</option>
-          {assignedProjects.map(p => (
-            <option key={p.projectName} value={p.projectName}>
-              {p.projectName}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={fetchPullRequests}
-          className="px-4 py-2 bg-blue-500 text-white rounded"
-          disabled={!canViewProject || !projectName}
-        >
-          Refresh
-        </button>
-      </div>
-      {loading && <p>Loading...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-      {!loading && !canViewProject && projectName && <p className="text-red-500">Unauthorized project</p>}
-      {!loading && pullRequests.length === 0 && projectName && <p>No pending pull requests</p>}
-      <ul className="space-y-4">
-        {pullRequests.map((pr) => (
-          <li key={pr.pullRequestId} className="border p-4 rounded">
-            <p><strong>PR ID:</strong> {pr.pullRequestId}</p>
-            <p><strong>Project:</strong> {pr.projectName}</p>
-            <p><strong>Version:</strong> {pr.version}</p>
-            <p><strong>Developer:</strong> {pr.developer}</p>
-            <p><strong>Timestamp:</strong> {new Date(pr.timestamp).toLocaleString()}</p>
-            <p><strong>Changed Files:</strong></p>
-            <ul className="list-disc pl-5">
-              {pr.changedFiles.map((file, index) => (
-                <li key={index}>
-                  <strong>{file.filename}</strong>
-                  <pre>{file.content}</pre>
-                  <p><strong>Vulnerability Status:</strong> {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}</p>
-                  {file.vulnerability.is_vulnerable && (
-                    <div>
-                      <p><strong>Vulnerability Details:</strong></p>
-                      <ul className="list-disc pl-5">
-                        {Array.isArray(file.vulnerability.details) ? (
-                          file.vulnerability.details.map((vuln, idx) => (
-                            <li key={idx}>
-                              <strong>{vuln.type}</strong> at line {vuln.line}: <pre>{vuln.snippet}</pre>
-                            </li>
-                          ))
-                        ) : (
-                          <li>{file.vulnerability.details}</li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-2">
-              <button
-                onClick={() => handleDecision(pr.pullRequestId, 'approve')}
-                className="px-4 py-2 bg-green-500 text-white rounded mr-2"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => handleDecision(pr.pullRequestId, 'reject')}
-                className="px-4 py-2 bg-red-500 text-white rounded"
-              >
-                Reject
-              </button>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Auditor Dashboard</h1>
+          <button 
+            onClick={onLogout} 
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
+          >
+            Logout
+          </button>
+        </div>
+        
+        <div className="mb-8 flex gap-4">
+          <select
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            className="flex-1 p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select Project</option>
+            {assignedProjects.map(p => (
+              <option key={p.projectName} value={p.projectName}>
+                {p.projectName}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={fetchPullRequests}
+            className={`px-6 py-3 rounded-lg text-white font-medium ${
+              !canViewProject || !projectName 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            } transition-colors duration-200`}
+            disabled={!canViewProject || !projectName}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {loading && (
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            <p className="mt-2 text-gray-600">Loading...</p>
+          </div>
+        )}
+        
+        {error && (
+          <p className="p-4 bg-red-100 text-red-700 rounded-lg mb-6">{error}</p>
+        )}
+        
+        {!loading && !canViewProject && projectName && (
+          <p className="p-4 bg-red-100 text-red-700 rounded-lg mb-6">Unauthorized project</p>
+        )}
+        
+        {!loading && pullRequests.length === 0 && projectName && (
+          <p className="p-4 bg-blue-100 text-blue-700 rounded-lg mb-6">No pending pull requests</p>
+        )}
+
+        <div className="space-y-6">
+          {pullRequests.map((pr) => (
+            <div 
+              key={pr.pullRequestId} 
+              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-600"><strong className="text-gray-800">PR ID:</strong> {pr.pullRequestId}</p>
+                  <p className="text-gray-600"><strong className="text-gray-800">Project:</strong> {pr.projectName}</p>
+                  <p className="text-gray-600"><strong className="text-gray-800">Version:</strong> {pr.version}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600"><strong className="text-gray-800">Developer:</strong> {pr.developer}</p>
+                  <p className="text-gray-600"><strong className="text-gray-800">Timestamp:</strong> {new Date(pr.timestamp).toLocaleString()}</p>
+                </div>
+              </div>
+
+              <p className="text-gray-800 font-medium mb-2">Changed Files:</p>
+              <div className="space-y-4">
+                {pr.changedFiles.map((file, index) => (
+                  <div key={index} className="border-l-4 border-gray-200 pl-4">
+                    <p className="text-gray-800 font-medium">{file.filename}</p>
+                    <pre className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 overflow-x-auto">
+                      {file.content}
+                    </pre>
+                    <p className="mt-2">
+                      <strong className="text-gray-800">Vulnerability Status:</strong>{' '}
+                      <span className={file.vulnerability.is_vulnerable ? 'text-red-600' : 'text-green-600'}>
+                        {file.vulnerability.is_vulnerable ? 'Vulnerable' : 'Safe'}
+                      </span>
+                    </p>
+                    {file.vulnerability.is_vulnerable && (
+                      <div className="mt-2">
+                        <p className="text-gray-800 font-medium">Vulnerability Details:</p>
+                        <ul className="list-disc pl-6 mt-2 space-y-2">
+                          {Array.isArray(file.vulnerability.details) ? (
+                            file.vulnerability.details.map((vuln, idx) => (
+                              <li key={idx} className="text-gray-600">
+                                <strong className="text-gray-800">{vuln.type}</strong> at line {vuln.line}:{' '}
+                                <pre className="inline-block bg-gray-50 p-2 rounded text-sm">{vuln.snippet}</pre>
+                              </li>
+                            ))
+                          ) : (
+                            <li className="text-gray-600">{file.vulnerability.details}</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 flex gap-4">
+                <button
+                  onClick={() => handleDecision(pr.pullRequestId, 'approve')}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => handleDecision(pr.pullRequestId, 'reject')}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
+                >
+                  Reject
+                </button>
+              </div>
             </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

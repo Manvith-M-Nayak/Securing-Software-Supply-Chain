@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import AdminCommitHistory from "./AdminCommitHistory";
+import AdminPullHistory from "./AdminPullHistory";
 import AdminRoleManager from "./AdminRoleManager";
 import AdminCreateProject from "./AdminCreateProject";
 
@@ -71,7 +71,7 @@ function AdminDashboard() {
       </div>
 
       <div style={{ marginBottom: "30px" }}>
-        <AdminCommitHistory />
+        <AdminPullHistory />
       </div>
     </div>
   );

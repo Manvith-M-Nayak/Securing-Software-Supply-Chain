@@ -30,12 +30,12 @@ def get_web3():
 # Function to retrieve the deployed contract instance
 def get_contract(w3):
     # Load contract address from .env
-    contract_address = os.environ.get("REGISTRY_ADDRESS")
+    contract_address = os.environ.get("PULL_REQUESTS")
     if not contract_address:
-        raise Exception("REGISTRY_ADDRESS not set in .env")
+        raise Exception("PULL_REQUESTS not set in .env")
 
     # Build the ABI path (assuming ABI is a raw list or full artifact)
-    abi_path = "../frontend/src/abis/SoftwareRegistry.json"
+    abi_path = "../frontend/src/abis/PullRequests.json"
     if not os.path.exists(abi_path):
         raise FileNotFoundError(f"ABI file not found at {abi_path}")
 
